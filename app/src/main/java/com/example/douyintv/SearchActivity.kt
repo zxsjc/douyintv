@@ -52,7 +52,6 @@ class SearchActivity : Activity() {
     private lateinit var btnClear: TextView
     private lateinit var btnBack: TextView
     private lateinit var keyboardBox: LinearLayout
-    private lateinit var tvPhoneHint: TextView
 
     // 中栏
     private lateinit var sugRecycler: RecyclerView
@@ -93,7 +92,6 @@ class SearchActivity : Activity() {
             btnClear = findViewById(R.id.btnClear) as TextView
             btnBack = findViewById(R.id.btnBack) as TextView
             keyboardBox = findViewById(R.id.keyboardBox) as LinearLayout
-            tvPhoneHint = findViewById(R.id.tvPhoneHint) as TextView
             sugRecycler = findViewById(R.id.sugRecycler) as RecyclerView
             sugBox = findViewById(R.id.sugBox)
             tvSugTitle = findViewById(R.id.tvSugTitle) as TextView
@@ -122,7 +120,6 @@ class SearchActivity : Activity() {
             btnClear.setOnClickListener { clearInput() }
             btnBack.setOnClickListener { backspace() }
             btnRetry.setOnClickListener { if (keyword.isEmpty()) resetAll() else doSearch(keyword) }
-            renderPhoneHint()
 
             val kw0 = intent?.getStringExtra("kw")
             if (!kw0.isNullOrBlank()) {
@@ -209,11 +206,6 @@ class SearchActivity : Activity() {
         try { etKeyword.setText(typed.toString()) } catch (_: Exception) {}
     }
 
-    private fun renderPhoneHint() {
-        val ip = ConfigServer.localIp()
-        tvPhoneHint.text = if (ip == null) "" else "手机输入：浏览器打开\n$ip:${ConfigServer.PORT}"
-    }
-
     // ================================================================
     // 联想
     // ================================================================
@@ -283,8 +275,7 @@ class SearchActivity : Activity() {
     // ================================================================
     private fun doSearch(kw: String) {
         if (kw.isBlank()) return
-        // ★ 幂等：ConfigServer 会同时走 SearchBus + Intent 两条通道，
-        //   同一关键词已在加载时直接忽略第二次调用（避免重复网络请求）
+        // 同一关键词正在加载 → 忽略重复调用
         if (keyword == kw && loading) return
         keyword = kw
         // ★ 搜索历史：每次搜索记录一条（本地）
@@ -401,22 +392,6 @@ class SearchActivity : Activity() {
             finish(); return true
         }
         return super.dispatchKeyEvent(event)
-    }
-
-    override fun onResume() {
-        super.onResume()
-        // ★ 跨线程安全：SearchBus 的 push 可能来自 NanoHTTPD 工作线程
-        //   （手机浏览器 :8088/search），UI 更新必须 post 回主线程
-        SearchBus.register { kw ->
-            handler.post {
-                typed.setLength(0); typed.append(kw); syncInput(); doSearch(kw)
-            }
-        }
-    }
-
-    override fun onPause() {
-        SearchBus.unregister()
-        super.onPause()
     }
 
     override fun onDestroy() {

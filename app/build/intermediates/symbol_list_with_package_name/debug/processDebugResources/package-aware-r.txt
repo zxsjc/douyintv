@@ -175,7 +175,6 @@ dimen tv_tab_text_size
 dimen tv_text_body
 dimen tv_text_small
 dimen tv_text_title
-drawable about_qr
 drawable btn_chip
 drawable btn_tv_primary
 drawable btn_tv_secondary
@@ -266,6 +265,8 @@ id btnClear
 id btnComment
 id btnDiag
 id btnDigg
+id btnDmLines
+id btnDmPos
 id btnExit
 id btnGear
 id btnGray
@@ -387,7 +388,6 @@ id tvInfoMeta
 id tvInfoTitle
 id tvMeta
 id tvName
-id tvPhoneHint
 id tvPlaceholder
 id tvPos
 id tvRank

@@ -1,9 +1,9 @@
 {
-    "versionCode": 134,
-    "versionName": "2.34",
-    "apkUrl": "https://github.com/zxsjc/douyintv/releases/download/2.34/Dtv-2.34-debug.apk",
-    "sha256": "582e258b8691ddbb82d40f313a61267e92c675d93043da2bed6b9f7f8f85523b",
-    "size": 7915212,
-    "notes": "1. 弹幕开着却不显示（核心修复）\n2. version.json 构建时自动生成",
+    "versionCode": 136,
+    "versionName": "2.36",
+    "apkUrl": "https://github.com/zxsjc/douyintv/releases/download/2.36/Dtv-2.36-debug.apk",
+    "sha256": "9001d65c914281c9538ace01163628244c19ec8b58b080f087214ce9e96cb4c7",
+    "size": 7597037,
+    "notes": "1. 弹幕全部等速，右边新出的弹幕不会再追上并盖住前面那句，间距固定不重叠\n2. 图文作品改用原图级加载（不再拿 480px 缩略图放大），满屏清晰；并预热下一张，切图不卡",
     "force": false
 }

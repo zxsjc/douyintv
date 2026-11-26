@@ -193,7 +193,7 @@ object Prefs {
         ctx(context).edit().putInt("engine", idx).apply()
     }
 
-    // ★ 用户手动选择的引擎（菜单/遥控「切换引擎」）★
+    // ★ 用户手动选择的引擎（菜单「切换引擎」）★
     //   与 engine（最近一次成功起播的引擎）分开存：
     //   自动回退到别的引擎救场时，不能把用户的选择覆盖掉，
     //   否则下次打开又是「记忆失效、回到默认引擎」。
@@ -233,9 +233,25 @@ object Prefs {
     fun getDanmaku(): Boolean = App.appContext()?.let { ctx(it).getBoolean("danmaku_on", false) } ?: false
     fun setDanmaku(context: Context, v: Boolean) = ctx(context).edit().putBoolean("danmaku_on", v).apply()
 
-    // ---- 手机遥控配对码（6 位数字；首次自动生成，可手动重生成） ----
-    // ★ 用 java.util.Random：ThreadLocalRandom 是 API 21+，本机 API 17 会 NoSuchMethodError
-    private val pairRnd = java.util.Random()
+    // ---- 弹幕排版：显示行数（默认 3 行）/ 位置（默认顶部） ----
+    //   行数 1~5：横道条数越多同屏越热闹，老盒子也更耗一点
+    //   位置：top / middle / bottom —— 决定整块弹幕落在画面的哪一段
+    fun getDanmakuLines(): Int {
+        val c = App.appContext() ?: return 3
+        return ctx(c).getInt("danmaku_lines", 3).coerceIn(1, 5)
+    }
+
+    fun setDanmakuLines(context: Context, v: Int) =
+        ctx(context).edit().putInt("danmaku_lines", v.coerceIn(1, 5)).apply()
+
+    fun getDanmakuPos(): String {
+        val c = App.appContext() ?: return "top"
+        val v = ctx(c).getString("danmaku_pos", "top") ?: "top"
+        return if (v == "middle" || v == "bottom") v else "top"
+    }
+
+    fun setDanmakuPos(context: Context, v: String) =
+        ctx(context).edit().putString("danmaku_pos", v).apply()
 
     /** ★ 画质档位偏好：1080(默认)/720/480/auto(最高可用 H.264 复用档) */
     fun getQualityGear(): String {
@@ -246,79 +262,6 @@ object Prefs {
     fun setQualityGear(v: String) {
         val c = App.appContext() ?: return
         ctx(c).edit().putString("quality_gear", v).apply()
-    }
-
-    fun getPairCode(): String {
-        val c = App.appContext() ?: return "000000"
-        var code: String = ctx(c).getString("pair_code", "") ?: ""
-        if (code.isBlank() || code.length != 6) {
-            code = String.format("%06d", pairRnd.nextInt(1000000))
-            ctx(c).edit().putString("pair_code", code).apply()
-        }
-        return code
-    }
-
-    fun regeneratePairCode(context: Context): String {
-        val code: String = String.format("%06d", pairRnd.nextInt(1000000))
-        ctx(context).edit().putString("pair_code", code).apply()
-        return code
-    }
-
-    // ---- 手机遥控：tv_uuid + 手机白名单（配对后长期授权） ----
-    fun getTvUuid(): String {
-        val c = App.appContext() ?: return ""
-        var u = ctx(c).getString("tv_uuid", "") ?: ""
-        if (u.isBlank()) {
-            val chars = "abcdef0123456789"
-            val sb = StringBuilder()
-            val r = java.util.Random()
-            for (i in 0 until 32) sb.append(chars[r.nextInt(chars.length)])
-            u = sb.toString()
-            ctx(c).edit().putString("tv_uuid", u).apply()
-        }
-        return u
-    }
-
-    /** 白名单：JSON 数组 [{uuid, name, ts}] 里的 uuid 列表 */
-    fun getAllowList(): List<String> {
-        val c = App.appContext() ?: return emptyList()
-        return try {
-            val arr = org.json.JSONArray(ctx(c).getString("allow_clients", "[]") ?: "[]")
-            (0 until arr.length()).map { arr.optJSONObject(it)?.optString("uuid", "") ?: "" }
-                .filter { it.isNotBlank() }
-        } catch (_: Throwable) { emptyList() }
-    }
-
-    fun isAllowed(uuid: String): Boolean = uuid.isNotBlank() && getAllowList().contains(uuid)
-
-    fun addAllowedClient(context: Context, uuid: String, name: String) {
-        if (uuid.isBlank()) return
-        try {
-            val arr = org.json.JSONArray(ctx(context).getString("allow_clients", "[]") ?: "[]")
-            for (i in 0 until arr.length()) {
-                if (arr.optJSONObject(i)?.optString("uuid") == uuid) return   // 已在名单
-            }
-            val o = org.json.JSONObject()
-            o.put("uuid", uuid); o.put("name", name.ifBlank { "手机" }); o.put("ts", System.currentTimeMillis())
-            arr.put(o)
-            ctx(context).edit().putString("allow_clients", arr.toString()).apply()
-        } catch (_: Throwable) {}
-    }
-
-    fun delAllowedClient(context: Context, uuid: String) {
-        try {
-            val arr = org.json.JSONArray(ctx(context).getString("allow_clients", "[]") ?: "[]")
-            val out = org.json.JSONArray()
-            for (i in 0 until arr.length()) {
-                val o = arr.optJSONObject(i)
-                if (o?.optString("uuid") != uuid) out.put(o)
-            }
-            ctx(context).edit().putString("allow_clients", out.toString()).apply()
-        } catch (_: Throwable) {}
-    }
-
-    fun clearAllowedClients(context: Context) {
-        ctx(context).edit().putString("allow_clients", "[]").apply()
     }
 
     // ================================================================

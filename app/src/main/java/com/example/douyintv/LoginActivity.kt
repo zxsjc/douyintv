@@ -20,7 +20,6 @@ import android.widget.Toast
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
-import fi.iki.elonen.NanoHTTPD
 
 /**
  * 登录页（独立）
@@ -45,7 +44,6 @@ class LoginActivity : Activity() {
         private const val TAG = "Login"
     }
 
-    private var server: ConfigServer? = null
     private lateinit var ivQr: ImageView
     private lateinit var tvUrl: TextView
     private lateinit var tvStatus: TextView
@@ -69,9 +67,9 @@ class LoginActivity : Activity() {
             btnLogout = findViewById(R.id.btnLogout) as TextView
             btnStart = findViewById(R.id.btnStart) as TextView
 
-            // ★ 遥控/配置服务已由 App 常驻启动（ConfigServer.startApp），本页不再自管
+            // ★ Cookie 推送服务已由 App 常驻启动（ConfigServer.startApp）
             render()
-            handler.post(refreshTick)   // 手机保存 Cookie / 换配对码后轮询刷新
+            handler.post(refreshTick)   // 手机端保存 Cookie 后轮询刷新
 
             setupTvFocus(btnManual, btnLogout, btnStart)
             btnManual.setOnClickListener { manualDialog() }
@@ -84,7 +82,7 @@ class LoginActivity : Activity() {
         }
     }
 
-    /** 轮询刷新登录态/配对码（服务常驻后没有主动回调了） */
+    /** 轮询刷新登录态（手机保存 Cookie 后本页自动更新） */
     private val refreshTick = object : Runnable {
         private var lastCookie = ""
         override fun run() {
@@ -104,24 +102,6 @@ class LoginActivity : Activity() {
         }
     }
 
-    // ---------------- 推送服务（本页独占，设置页不再启，避免抢 8088 端口）----------------
-    private fun startServer() {
-        if (server != null) return
-        try {
-            server = ConfigServer(applicationContext) { cookie ->
-                Log.d(TAG, "收到 Cookie 长度=${cookie.length}")
-                handler.post {
-                    render()
-                    CustomToast.show(this, "已登录 ✓")
-                }
-            }.also { it.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false) }
-            Log.d(TAG, "推送服务已启动: ${urlText()}")
-        } catch (e: Exception) {
-            Log.e(TAG, "服务启动失败", e)
-            CustomToast.show(this, "推送服务启动失败: ${e.message}")
-        }
-    }
-
     private fun urlText(): String {
         val ip = ConfigServer.localIp() ?: "0.0.0.0"
         return "http://$ip:${ConfigServer.PORT}"
@@ -129,7 +109,6 @@ class LoginActivity : Activity() {
 
     private fun render() {
         val url = urlText()
-        val code = Prefs.getPairCode()
         tvUrl.text = url
         ivQr.setImageBitmap(makeQr(url, 440))
 
@@ -139,8 +118,8 @@ class LoginActivity : Activity() {
             tvStatus.setTextColor(0xFF81C784.toInt())
             btnStart.isEnabled = true
             btnLogout.visibility = View.VISIBLE
-            tvHint.text = "手机遥控：浏览器打开 $url/remote → 配对码 $code\n" +
-                "想换账号：手机上重新粘贴新 Cookie 即可覆盖；或先「退出登录」清掉再登。"
+            tvHint.text = "想换账号：手机/电脑浏览器打开 $url 重新粘贴新 Cookie 即可；\n" +
+                "或先「退出登录」清掉再登。"
         } else {
             tvStatus.text = "✗ 未登录"
             tvStatus.setTextColor(0xFFF06292.toInt())
@@ -149,8 +128,7 @@ class LoginActivity : Activity() {
             tvHint.text = "手机扫码登录（电视上不用打字）：\n" +
                 "1. 手机扫左边二维码\n" +
                 "2. 浏览器打开推送页\n" +
-                "3. 粘贴 Cookie → 点保存，本页会自动更新\n" +
-                "遥控配对码：$code"
+                "3. 粘贴 Cookie → 点保存，本页会自动更新"
         }
     }
 
@@ -217,9 +195,6 @@ class LoginActivity : Activity() {
     }
 
     override fun onDestroy() {
-        // 服务是「谁开谁关」：本页关掉就停，避免常驻占端口
-        try { server?.stop() } catch (_: Exception) {}
-        server = null
         super.onDestroy()
     }
 }

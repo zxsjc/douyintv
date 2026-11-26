@@ -34,6 +34,16 @@ object ImageLoader {
         override fun sizeOf(key: String, value: Bitmap) = value.byteCount
     }
 
+    /**
+     * 大图缓存（图文作品全屏浏览专用）。
+     * 列表封面走 480px 采样版没问题，但图文作品要满屏显示 1536x2038 的原图 ——
+     * 复用封面缓存只会拿到 480px 缩略图，电视上糊成一片（用户反馈的正是这个）。
+     * 单独 12MB 上限，最多缓存两三张，滑动时淘汰，不跟封面抢。
+     */
+    private val bigCache = object : LruCache<String, Bitmap>(12 * 1024 * 1024) {
+        override fun sizeOf(key: String, value: Bitmap) = value.byteCount
+    }
+
     private val pool = Executors.newFixedThreadPool(3)
     private val main = Handler(Looper.getMainLooper())
 
@@ -83,7 +93,55 @@ object ImageLoader {
         }
     }
 
-    private fun fetch(url: String): Bitmap? = try {
+    /**
+     * 加载「原图级」大图（图文作品全屏用）。
+     * maxDim=2200：1536x2038 这类原图不会被降采样（老盒子堆小，这里用 RGB_565 控内存）。
+     */
+    fun loadLarge(url: String?, into: ImageView, tag: String? = null) {
+        if (url.isNullOrBlank()) {
+            into.setImageResource(R.drawable.cover_error)
+            return
+        }
+        into.tag = tag ?: url
+        bigCache.get(url)?.let {
+            into.setImageBitmap(it)
+            return
+        }
+        into.setImageResource(R.drawable.cover_placeholder)
+        synchronized(inflight) {
+            if (!inflight.add("L" + url)) return
+        }
+        pool.execute {
+            val bmp = fetch(url, 2200)
+            synchronized(inflight) { inflight.remove("L" + url) }
+            if (bmp == null) {
+                Log.w(TAG, "大图加载失败: ${url.take(60)}")
+                main.post {
+                    if (into.tag == (tag ?: url)) into.setImageResource(R.drawable.cover_error)
+                }
+                return@execute
+            }
+            bigCache.put(url, bmp)
+            main.post {
+                if (into.tag == (tag ?: url)) into.setImageBitmap(bmp)
+            }
+        }
+    }
+
+    /** 预热下一张（图文轮播 4 秒一张，提前下好，切图不闪黑） */
+    fun prefetchLarge(url: String?) {
+        if (url.isNullOrBlank() || bigCache.get(url) != null) return
+        synchronized(inflight) {
+            if (!inflight.add("P" + url)) return
+        }
+        pool.execute {
+            val bmp = try { fetch(url, 2200) } catch (_: Throwable) { null }
+            synchronized(inflight) { inflight.remove("P" + url) }
+            if (bmp != null) bigCache.put(url, bmp)
+        }
+    }
+
+    private fun fetch(url: String, maxDim: Int = 480): Bitmap? = try {
         val req = Request.Builder().url(url)
             .header("User-Agent", UA)
             .header("Referer", REFERER)
@@ -109,7 +167,11 @@ object ImageLoader {
             val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
             var sample = 1
-            while (opts.outWidth / sample > 480 || opts.outHeight / sample > 480) sample *= 2
+            while (opts.outWidth / sample > maxDim || opts.outHeight / sample > maxDim) sample *= 2
+            // ★ 内存护栏：单张解码后 ≤ 12MB（RGB_565 = 2B/px）。
+            //   超长图（如 2000x6000 长截图）不护栏会直接 24MB → 老盒子 OOM。
+            while ((opts.outWidth / sample).toLong() * (opts.outHeight / sample).toLong() * 2L
+                > 12L * 1024L * 1024L) sample *= 2
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size,
                 BitmapFactory.Options().apply {
                     inSampleSize = sample

@@ -34,8 +34,10 @@ class SettingsActivity : Activity() {
             val btnProbe = findViewById(R.id.btnProbe) as TextView
             val btnAbout = findViewById(R.id.btnAbout) as TextView
             val btnGear = findViewById(R.id.btnGear) as TextView
+            val btnDmLines = findViewById(R.id.btnDmLines) as TextView
+            val btnDmPos = findViewById(R.id.btnDmPos) as TextView
 
-            setupTvFocus(btnDiag, btnProbe, btnAbout, btnGear)
+            setupTvFocus(btnDiag, btnGear, btnProbe, btnDmLines, btnDmPos, btnAbout)
             // 黑方块来源诊断页入口（判定方法见 WhiteTestActivity 注释）
             btnDiag.setOnClickListener {
                 startActivity(Intent(this, WhiteTestActivity::class.java))
@@ -44,7 +46,7 @@ class SettingsActivity : Activity() {
             btnProbe.setOnClickListener {
                 startActivity(Intent(this, ApiProbeActivity::class.java))
             }
-            // 关于：作者 / 主页二维码 / 版本与签名指纹
+            // 关于：只保留版本号与签名指纹（作者信息已移除）
             btnAbout.setOnClickListener {
                 startActivity(Intent(this, AboutActivity::class.java))
             }
@@ -64,6 +66,30 @@ class SettingsActivity : Activity() {
                 Prefs.setQualityGear(next)
                 btnGear.text = "画质档位：" + gearLabel(next) + "（点击切换）"
                 CustomToast.show(this, "画质已切换：" + gearLabel(next))
+            }
+
+            // ★ 弹幕显示：行数（默认 3 行）与位置（默认顶部）
+            fun dmPosLabel(v: String): String = when (v) {
+                "middle" -> "画面中部"
+                "bottom" -> "屏幕底部"
+                else -> "屏幕顶部"
+            }
+            btnDmLines.text = "弹幕行数：" + Prefs.getDanmakuLines() + " 行（点击切换 1~5）"
+            btnDmLines.setOnClickListener {
+                val next = if (Prefs.getDanmakuLines() >= 5) 1 else Prefs.getDanmakuLines() + 1
+                Prefs.setDanmakuLines(this, next)
+                btnDmLines.text = "弹幕行数：" + next + " 行（点击切换 1~5）"
+                CustomToast.show(this, "弹幕行数：" + next + " 行（下次进入播放生效）")
+            }
+            btnDmPos.text = "弹幕位置：" + dmPosLabel(Prefs.getDanmakuPos()) + "（点击切换 顶部/中部/底部）"
+            btnDmPos.setOnClickListener {
+                val order = arrayOf("top", "middle", "bottom")
+                val cur = Prefs.getDanmakuPos()
+                val idx = order.indexOf(cur).let { if (it < 0) 0 else it }
+                val next = order[(idx + 1) % order.size]
+                Prefs.setDanmakuPos(this, next)
+                btnDmPos.text = "弹幕位置：" + dmPosLabel(next) + "（点击切换 顶部/中部/底部）"
+                CustomToast.show(this, "弹幕位置：" + dmPosLabel(next))
             }
 
             // 解码器探测：这台电视到底有没有可用的视频硬解，一看便知。

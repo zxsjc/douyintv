@@ -42,6 +42,10 @@ class FollowListActivity : Activity() {
     private lateinit var tvStatus: TextView
 
     private val items = ArrayList<DouyinApi.FollowAuthor>()
+
+    /** 补作品数的状态：secUid → 已尝试次数（服务端 following/list 不带 aweme_count） */
+    private val countAttempts = HashMap<String, Int>()
+    private var fillRunning = false
     private lateinit var adapter: AuthorAdapter
 
     // ★ 真机实测：服务端忽略 offset、一页最多 21 条。主游标必须是 max_time；
@@ -164,6 +168,11 @@ class FollowListActivity : Activity() {
                     "共 ${items.size} 位作者 / 关注 $totalCount 位　OK 看作品　↑↓ 滚动"
                 else "共 ${items.size} 位作者　OK 看作品　↑↓ 滚动"
 
+                // ★ 补作品数：following/list 里 aweme_count 恒为 0（实测 TRIN 就是 0），
+                //   必须另拉 profile/other 才知道「20 个作品」。慢一点没关系，别让用户
+                //   看到一行全是「查看作品」。
+                fillMissingCounts()
+
                 // ★ 自动补页 ★：一进来就把全量拉齐，而不是等用户滚到底才发现只有 30 个。
                 //   拉到总数、服务端说到底、或已达安全上限才停。
                 if (hasMore && items.size < 200) {
@@ -177,6 +186,52 @@ class FollowListActivity : Activity() {
                         if (v != null) v.requestFocus() else recycler.requestFocus()
                     }
                 }
+            }
+        }.start()
+    }
+
+    /**
+     * 给「作品数为 0 / 未知」的作者补真实作品数。
+     *
+     * 背景：/user/following/list/ 返回的作者对象里 aweme_count 恒为 0
+     * （实测「宽广度TRIN」服务端只给 nickname/sec_uid/follower_count），
+     * 关注列表于是显示成「查看作品」。真正的数字在 /user/profile/other/（实测 20）。
+     * 这里逐个补拉：串行 + 140ms 间隔，避免一次打 35 个请求被风控；失败的 5 秒后再试一次。
+     */
+    private fun fillMissingCounts() {
+        if (fillRunning) return
+        val jobs = ArrayList<Pair<Int, String>>()
+        for (i in items.indices) {
+            val a = items[i]
+            if (a.awemeCount > 0) continue
+            val n = countAttempts[a.secUid] ?: 0
+            if (n >= 2) continue
+            countAttempts[a.secUid] = n + 1
+            jobs.add(i to a.secUid)
+        }
+        if (jobs.isEmpty()) return
+        fillRunning = true
+        val cookie = Prefs.getCookie(this)
+
+        Thread {
+            val got = ArrayList<Pair<Int, Int>>()
+            for ((idx, sec) in jobs) {
+                val p = try { DouyinApi.fetchUserProfile(cookie, sec) } catch (_: Throwable) { null }
+                if (p != null && p.awemeCount > 0) got.add(idx to p.awemeCount)
+                try { Thread.sleep(140) } catch (_: InterruptedException) {}
+            }
+            handler.post {
+                fillRunning = false
+                if (isFinishing) return@post
+                for ((idx, cnt) in got) {
+                    val old = items.getOrNull(idx) ?: continue
+                    if (old.awemeCount == cnt) continue
+                    items[idx] = old.copy(awemeCount = cnt)
+                    adapter.notifyItemChanged(idx)
+                }
+                // 还有漏的（网络抖动）→ 稍后再补一轮（每人不超过 2 次）
+                val missing = items.any { it.awemeCount <= 0 && (countAttempts[it.secUid] ?: 0) < 2 }
+                if (missing) handler.postDelayed({ fillMissingCounts() }, 5000)
             }
         }.start()
     }

@@ -258,7 +258,7 @@ class PlayerActivity : Activity(), SurfaceHolder.Callback, VideoEngine.Listener,
     private var lastErrorAt = 0L
     private var retrySameEngine = 0
 
-    /** 播放倍速（手机遥控可调；Exo/IJK 生效） */
+    /** 播放倍速（播放器菜单可调；Exo/IJK 生效） */
     private var playSpeed = 1.0f
 
     /** 当前使用第几条线路（0 = 主链，其余为备用链） */
@@ -389,20 +389,6 @@ class PlayerActivity : Activity(), SurfaceHolder.Callback, VideoEngine.Listener,
                 //   把新视频的比例盖成上一条的。这里每 1 秒按已知真实尺寸比对一次，
                 //   只要容器/图层跟视频比例对不上就重新应用（幂等，比例正确时零动作）。
                 if (++geomSeq % 2 == 0) resyncGeometryIfNeeded()
-                // ★ 手机遥控状态快照（ConfigServer /status 读它展示）
-                try {
-                    val snap = PlayerBus.snapshot
-                    snap.title = cur()?.desc ?: ""
-                    snap.author = cur()?.author ?: ""
-                    snap.positionMs = pos
-                    snap.durationMs = dur
-                    snap.playing = !paused && e.isPlaying()
-                    val aid = cur()?.awemeId
-                    snap.digged = aid?.let { isDiggedCached(it) } == true
-                    snap.engine = currentEngine().name
-                    snap.danmaku = Prefs.getDanmaku()
-                    snap.speed = playSpeed
-                } catch (_: Throwable) {}
                 // ★ 恢复点心跳 ★
                 //   恢复窗口的过期判定必须基于「进程此刻还活着」，而不是
                 //   「上一个视频的起播时刻」—— 否则看一个视频超过窗口再往下滑，
@@ -521,8 +507,6 @@ class PlayerActivity : Activity(), SurfaceHolder.Callback, VideoEngine.Listener,
             progressBar = findViewById(R.id.progressBar) as ProgressBar
             tvHint = findViewById(R.id.tvHint) as TextView
             danmaku = try { findViewById(R.id.danmaku) as DanmakuView } catch (_: Throwable) { null }
-            PlayerBus.attach(remoteListener)
-            PlayerBus.snapshot.inPlayer = true
             if (Prefs.getDanmaku()) applyDanmaku()
 
             // ★ 功能按钮直接摆在底栏：←→ 就能选中、OK 进入
@@ -839,11 +823,18 @@ private fun cur(): DouyinApi.VideoItem? {
     }
 
     // ---------------- 图文/图集作品轮播 ----------------
-    /** 显示当前这一张图（用列表图片加载器，自带采样省内存） */
+    /**
+     * 显示当前这一张图。
+     * ★ 2.36：改用 loadLarge（原图级）—— 旧版走封面用的 480px 采样，
+     *   图文作品全屏后等于把缩略图放大 3 倍，满屏都是马赛克（用户反馈的正是这个）。
+     */
     private fun showCurrentSlide() {
         if (imageSlides.isEmpty()) return
         val idx = imageSlideIndex.coerceIn(0, imageSlides.lastIndex)
-        ImageLoader.load(imageSlides[idx], imagePostView)
+        ImageLoader.loadLarge(imageSlides[idx], imagePostView)
+        // 预热下一张：4 秒后切换时不再等网络
+        val next = imageSlides[(idx + 1) % imageSlides.size]
+        if (imageSlides.size > 1) ImageLoader.prefetchLarge(next)
     }
 
     /** 启动图文作品：隐藏视频画面、显示图片层、开始轮播 */
@@ -857,6 +848,7 @@ private fun cur(): DouyinApi.VideoItem? {
         try { barMask.visibility = View.GONE } catch (_: Throwable) {}
         try { resetVideoGeometry() } catch (_: Throwable) {}
         imagePostView.visibility = View.VISIBLE
+        imagePostView.scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
         progressBar.visibility = View.GONE
         ivPause.visibility = View.GONE
         showCurrentSlide()
@@ -1039,7 +1031,7 @@ private fun cur(): DouyinApi.VideoItem? {
         playCurrent()
     }
 
-    /** 手动「换线路」统一入口（菜单 / 手机遥控共用）：在候选线路里循环。 */
+    /** 手动「换线路」统一入口（播放器菜单）：在候选线路里循环。 */
     private fun switchLineManually() {
         val n = candidateUrls().size
         if (n <= 1) flash("这条只有一条线路")
@@ -1340,6 +1332,8 @@ private fun cur(): DouyinApi.VideoItem? {
             return
         }
         d.visibility = View.VISIBLE
+        // ★ 行数/位置：每次应用都从 Prefs 读一遍，设置页改完立刻生效
+        d.setLayoutConfig(Prefs.getDanmakuLines(), Prefs.getDanmakuPos())
         d.setRunning(!paused)
         updateDanmakuBand()
         loadDanmaku()
@@ -1376,94 +1370,6 @@ private fun cur(): DouyinApi.VideoItem? {
     private fun syncDanmakuPause() {
         if (!Prefs.getDanmaku()) return
         try { danmaku?.setRunning(!paused) } catch (_: Throwable) {}
-    }
-
-    // ---------------- 手机遥控（PlayerBus 命令执行） ----------------
-    private val remoteListener = object : PlayerBus.Listener {
-        override fun onCommand(cmd: String, arg: String?) {
-            try {
-                when (cmd) {
-                    "next" -> nextVideo()
-                    "prev" -> prevVideo()
-                    "digg" -> doDigg()
-                    "toggle" -> togglePlayPause()
-                    "pause" -> { if (currentEngine().isPlaying()) { currentEngine().pause(); paused = true; showControls() } }
-                    "play" -> { if (!currentEngine().isPlaying()) { currentEngine().start(); paused = false; showControls() } }
-                    "seek" -> arg?.toLongOrNull()?.let { doSeek(it) }
-                    "line" -> switchLineManually()
-                    "engine" -> {
-                        try { engines[engineIndex].release() } catch (_: Exception) {}
-                        engineIndex = (engineIndex + 1) % engines.size
-                        Prefs.setUserEngine(this@PlayerActivity, engineIndex)
-                        urlAttempt = 0
-                        resetVideoGeometry()
-                        flash("引擎：${engines[engineIndex].name}（已记住）")
-                        playCurrent()
-                    }
-                    "danmaku" -> toggleDanmaku()
-                    "loop" -> { val v = !Prefs.isLoopOne(this@PlayerActivity); Prefs.setLoopOne(this@PlayerActivity, v) }
-                    "landscape" -> { val v = !Prefs.isLandscapeOnly(this@PlayerActivity); Prefs.setLandscapeOnly(this@PlayerActivity, v) }
-                    "speed" -> {
-                        // ★ 支持绝对倍速：arg 是数字直接设（按住快进用），否则循环档位
-                        val abs = arg?.toFloatOrNull()
-                        if (abs != null && abs in 0.5f..3f) {
-                            playSpeed = abs
-                        } else {
-                            val speeds = floatArrayOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
-                            var idx = 0
-                            for (i in speeds.indices) if (speeds[i] == playSpeed) idx = i
-                            playSpeed = speeds[(idx + 1) % speeds.size]
-                        }
-                        try { currentEngine().setSpeed(playSpeed) } catch (_: Throwable) {}
-                        flash("倍速 ${playSpeed}x")
-                    }
-                    "search" -> if (!arg.isNullOrBlank()) openSearchWith(arg)
-                    "push" -> if (!arg.isNullOrBlank()) pushVideoToPlayer(arg)
-                    "reload" -> playCurrent()
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "遥控命令失败: ${e.message}")
-            }
-        }
-    }
-
-    private fun openSearchWith(kw: String) {
-        SearchBus.push(kw)
-        try {
-            val i = Intent(this, SearchActivity::class.java)
-            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            i.putExtra("kw", kw)
-            startActivity(i)
-        } catch (e: Exception) {
-            Log.e(TAG, "遥控搜索拉起失败: ${e.message}")
-        }
-    }
-
-    /** 手机分享链接 → 解析 → 当前列表替换为这条视频并播放 */
-    private fun pushVideoToPlayer(raw: String) {
-        Thread {
-            val cookie = Prefs.getCookie(this)
-            val id = try {
-                val share = DouyinApi.extractShareUrl(raw)
-                if (share == null) null
-                else DouyinApi.extractAwemeId(DouyinApi.resolveShareUrl(share))
-                    ?: DouyinApi.extractAwemeId(share)
-            } catch (_: Exception) { null }
-            val item = if (id != null) DouyinApi.fetchVideoDetail(cookie, id) else null
-            handler.post {
-                if (isFinishing) return@post
-                if (item == null) { flash("推送的视频解析失败"); return@post }
-                FeedBus.put(listOf(item), 0, FeedBus.SOURCE_SHARE)
-                items = listOf(item)
-                currentIndex = 0
-                feedSource = FeedBus.SOURCE_SHARE
-                hasMore = false
-                urlAttempt = 0
-                retrySameEngine = 0
-                playCurrent()
-                flash("已播放推送的视频 ✓")
-            }
-        }.start()
     }
 
     /**
@@ -2166,8 +2072,6 @@ private fun cur(): DouyinApi.VideoItem? {
 
     override fun onDestroy() {
         try { (application as App).activePlayer = null } catch (_: Throwable) {}
-        PlayerBus.detach(remoteListener)
-        PlayerBus.snapshot.inPlayer = false
         try { danmaku?.setRunning(false) } catch (_: Throwable) {}
         try { stopService(Intent(this, PlayService::class.java)) } catch (_: Throwable) {}
         try {

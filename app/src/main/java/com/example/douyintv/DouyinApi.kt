@@ -735,6 +735,62 @@ object DouyinApi {
     }
 
     // ============================================================
+    // 作者主页信息（含作品总数）
+    // ============================================================
+    //  ★ 为什么要这个：/user/following/list/ 返回的作者对象里 aweme_count 恒为 0
+    //    （实测「宽广度TRIN」服务端只给 nickname/sec_uid/follower_count，
+    //      aweme_count 缺字段 → optInt 默认 0）。于是关注列表一行显示「查看作品」，
+    //    用户看到的就是「有作品却不显示数量」。
+    //    真正带 aweme_count 的是 /user/profile/other/（实测 20）。这里按 sec_uid 补拉，
+    //    结果进内存缓存，同一位作者只请求一次。
+    data class UserProfile(
+        val nickname: String,
+        val awemeCount: Int,
+        val followerCount: Int,
+        val signature: String
+    )
+
+    private val profileCache = java.util.concurrent.ConcurrentHashMap<String, UserProfile>()
+
+    fun cachedProfile(secUid: String): UserProfile? = profileCache[secUid]
+
+    fun fetchUserProfile(cookie: String, secUid: String): UserProfile? {
+        if (secUid.isBlank()) return null
+        profileCache[secUid]?.let { return it }
+        return try {
+            val url = "https://www.douyin.com/aweme/v1/web/user/profile/other/?" +
+                    "device_platform=webapp&aid=6383&channel=channel_pc_web" +
+                    "&sec_user_id=$secUid" + COMMON_TAIL
+            val req = Request.Builder().url(url)
+                .header("User-Agent", UA)
+                .header("Referer", "https://www.douyin.com/user/$secUid")
+                .header("Cookie", cookie)
+                .header("Accept", "application/json, text/plain, */*")
+                .header("Accept-Language", "zh-CN,zh;q=0.9")
+                .build()
+            val resp = exec(req)
+            val body = resp.body()?.string() ?: ""
+            if (resp.code() != 200 || body.isEmpty()) {
+                lastError = "作者信息 HTTP ${resp.code()}"
+                return null
+            }
+            val u = JSONObject(body).optJSONObject("user") ?: return null
+            val p = UserProfile(
+                nickname = u.optString("nickname", ""),
+                awemeCount = u.optInt("aweme_count", 0),
+                followerCount = u.optInt("follower_count", 0),
+                signature = u.optString("signature", "")
+            )
+            if (p.awemeCount > 0) profileCache[secUid] = p
+            p
+        } catch (e: Exception) {
+            lastError = "作者信息: ${e.javaClass.simpleName}: ${e.message}"
+            Log.e(TAG, "fetchUserProfile 异常", e)
+            null
+        }
+    }
+
+    // ============================================================
     // 作者主页作品  （实测：status_code=0, 20 条, max_cursor 有效）
     // ============================================================
     fun fetchUserPosts(cookie: String, secUid: String, maxCursor: Long = 0, count: Int = 20): FeedResult? {
@@ -1352,8 +1408,11 @@ object DouyinApi {
         if (imagesArr != null) {
             for (k in 0 until imagesArr.length()) {
                 val im = imagesArr.optJSONObject(k) ?: continue
-                val ul = im.optJSONArray("url_list")
-                var u = if (ul != null && ul.length() > 0) ul.optString(0, "") else im.optString("url", "")
+                // ★ url_list 一般按「小 → 大」排列，电视上必须取最大那张（末尾），
+                //   取 [0] 会拿到缩略图，轮播时糊成一片。
+                val ul = im.optJSONArray("url_list") ?: im.optJSONArray("download_url_list")
+                var u = if (ul != null && ul.length() > 0) ul.optString(ul.length() - 1, "")
+                        else im.optString("url", "")
                 if (u.startsWith("//")) u = "https:$u"
                 if (u.startsWith("http") && u !in imgUrls) imgUrls.add(u)
             }
@@ -1374,19 +1433,26 @@ object DouyinApi {
             return null
         }
 
+        val awemeType = obj.optInt("aweme_type", 0)
         val playAddr = videoObj?.optJSONObject("play_addr")
         val urlList = playAddr?.optJSONArray("url_list")
-        // 无播放地址 → 有图则作为图文条目返回，否则丢弃
-        if (urlList == null || urlList.length() == 0) {
-            if (imgUrls.isNotEmpty()) {
-                return VideoItem(
-                    awemeId, desc, author, "", imgUrls[0], 0, secUid, digg, cmtCount,
-                    topics, emptyList(), isPortrait = vh > vw,
-                    imageUrls = imgUrls, createTime = obj.optLong("create_time", 0L)
-                )
-            }
-            return null
+        val dur = videoObj?.optInt("duration", 0) ?: 0
+
+        // ★★★ 图文作品（aweme_type = 68）★★★
+        //   实测「宽广度TRIN」整页 20 条全是 type=68：带 images[]，但 video.play_addr
+        //   里同时还有 1~2 条「伪视频」地址、duration=0。旧逻辑只要 play_addr 非空
+        //   就当视频播 → 拿到一条时长为 0 的流，播放器起不来，表现正是
+        //   「关注列表里明明有作品，点进去却播不了」。现在只要带图且（type=68 或 时长为 0）
+        //   就一律走图片轮播，不再尝试这条假视频链。
+        if (imgUrls.isNotEmpty() && (awemeType == 68 || dur <= 0)) {
+            return VideoItem(
+                awemeId, desc, author, "", imgUrls[0], 0, secUid, digg, cmtCount,
+                topics, emptyList(), isPortrait = vh > vw,
+                imageUrls = imgUrls, createTime = obj.optLong("create_time", 0L)
+            )
         }
+        // 无播放地址（且已在上面处理过带图的）→ 丢弃
+        if (urlList == null || urlList.length() == 0) return null
 
         // 走到这里 urlList 非空 ⇒ videoObj 必非空，取非空引用供后续使用
         val vobj = videoObj ?: return null

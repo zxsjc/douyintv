@@ -11,14 +11,13 @@ import android.widget.TextView
 /**
  * 关于 Dtv（设置 -> 关于）
  * ========================
- * 展示作者名称 + 主页二维码 + 版本号 + 签名指纹。
+ * 只展示版本号 + 签名指纹（作者名/二维码已移除）。
  * 签名指纹与 App 启动时的自校验联动：指纹不符（被重打包）时显示红条警告。
  */
 class AboutActivity : Activity() {
 
     private companion object {
         const val TAG = "About"
-        const val AUTHOR_NAME = "chunese2235"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -27,7 +26,6 @@ class AboutActivity : Activity() {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             setContentView(R.layout.activity_about)
 
-            (findViewById(R.id.tvAuthor) as TextView).text = AUTHOR_NAME
             (findViewById(R.id.tvVersion) as TextView).text = versionName()
 
             val sig = findViewById(R.id.tvSig) as TextView

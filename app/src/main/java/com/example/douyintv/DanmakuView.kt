@@ -24,6 +24,9 @@ import java.util.Random
  *
  * ★ 视频区域限制：竖屏视频两侧有大黑边，弹幕只允许在真实画面区域内飞，
  *   由 PlayerActivity 调 setBand() 告知左右边界；未设置时退化为整屏宽度。
+ *
+ * ★ 2.35：显示行数（默认 3 行）与位置（默认顶部）可配置 —— 设置页写 Prefs，
+ *   PlayerActivity 用 setLayoutConfig() 喂进来。
  */
 class DanmakuView @JvmOverloads constructor(
     context: Context,
@@ -38,11 +41,11 @@ class DanmakuView @JvmOverloads constructor(
         val y: Float,          // 基线 y（px）
         val speed: Float,      // px / 秒
         val tw: Float,         // 文字宽度（px，缓存，避免每帧重新测量）
-        val lane: Int          // 所在横道（0..LANES-1）
+        val lane: Int          // 所在横道（0..laneCount-1）
     )
 
     private companion object {
-        const val LANES = 7                 // 横道数量
+        const val LANES_MAX = 5             // 横道数量上限（设置里可选 1~5，默认 3）
         const val MAX_ITEMS = 24            // 同屏上限（A7 上也能跑满 30fps）
         const val SPAWN_GAP_MS = 240L       // 发射间隔 ≈ 4 条/秒（再密就糊成一片）
         const val CROSS_SECONDS = 8f        // 一条弹幕横穿画面的耗时
@@ -62,6 +65,10 @@ class DanmakuView @JvmOverloads constructor(
     // 画面可视区域（默认 0 表示「未设置 → 用整屏」）
     private var bandL = 0f
     private var bandR = 0f
+
+    // 排版配置（设置页可改）：行数 1~LANES_MAX，位置 top/middle/bottom
+    private var laneCount = 3
+    private var posMode = "top"
 
     // 白（主力）/ 黄 / 品牌红 / 绿 / 蓝 / 橙
     private val COLORS = intArrayOf(
@@ -91,6 +98,39 @@ class DanmakuView @JvmOverloads constructor(
 
     /** 字号随屏宽变化（1920 → ≈35px），电视远距离观看足够清楚 */
     private fun textSizePx(): Float = (width * 0.0185f).coerceIn(20f, 38f)
+
+    /**
+     * 排版配置：显示行数 + 落点位置（由 PlayerActivity 从 Prefs 读出后喂进来）。
+     * 配置变了就清屏重排，避免新旧横道混着看着乱。
+     */
+    fun setLayoutConfig(lines: Int, position: String) {
+        val n = lines.coerceIn(1, LANES_MAX)
+        val pos = if (position == "middle" || position == "bottom") position else "top"
+        if (n == laneCount && pos == posMode) return
+        laneCount = n
+        posMode = pos
+        items.clear()
+        invalidate()
+    }
+
+    /**
+     * 第 lane 条横道的基线 y。
+     *   top    → 从画面顶部往下（默认，避开顶端 8% 的标题/信息条）
+     *   middle → 画面正中一条带
+     *   bottom → 画面底部往上，留出底部控制栏的空当
+     */
+    private fun laneBaseY(lane: Int): Float {
+        val h = height.toFloat()
+        val size = textSizePx()
+        val laneH = h * 0.10f
+        val total = laneH * laneCount
+        val start = when (posMode) {
+            "middle" -> (h - total) / 2f
+            "bottom" -> h * 0.88f - total
+            else -> h * 0.085f
+        }
+        return start + lane * laneH + size * 1.15f
+    }
 
     /**
      * 告知「真实画面」的左右边界（竖向铺满，横向用于限制弹幕范围）。
@@ -136,8 +176,7 @@ class DanmakuView @JvmOverloads constructor(
 
     /** 发一条弹幕；当前横道都挤着时返回 false（本帧不发） */
     private fun spawnOne(now: Long): Boolean {
-        val h = height
-        if (width <= 0 || h <= 0 || pool.isEmpty()) return false
+        if (width <= 0 || height <= 0 || pool.isEmpty()) return false
         val lane = pickLane() ?: return false
 
         val text = pool[poolIdx]
@@ -151,11 +190,13 @@ class DanmakuView @JvmOverloads constructor(
         }
         val tw = paint.measureText(text)
 
-        // 纵向：屏幕上 6% ~ 78% 之间分 7 条横道（避开顶部信息条与底部字幕区）
-        val laneH = h * 0.112f
-        val y = h * 0.065f + lane * laneH + size * 1.15f
+        val y = laneBaseY(lane)
         val right = spanRight()
-        val speed = (right - spanLeft() + tw) / CROSS_SECONDS
+        // ★ 2.36 关键修复：速度只按「屏幕宽度」算，与文字长短无关 —— 所有弹幕同速。
+        //   旧写法 (宽度 + 文字宽) / 8s：字越长跑得越快，后出的长句会从右边追上
+        //   前面那句（甚至直接盖在它上面），看起来就像「后面的弹幕撞了前面的」。
+        //   同速之后横道内的间距只由发射时的 gap 决定，永不重合。
+        val speed = (right - spanLeft()) / CROSS_SECONDS
 
         items.add(Item(text, paint, right + 8f, y, speed, tw, lane))
         lastSpawn = now
@@ -168,15 +209,18 @@ class DanmakuView @JvmOverloads constructor(
      */
     private fun pickLane(): Int? {
         val right = spanRight()
-        val rightEdge = FloatArray(LANES)
-        for (l in 0 until LANES) rightEdge[l] = -1e7f
+        val rightEdge = FloatArray(laneCount)
+        for (l in 0 until laneCount) rightEdge[l] = -1e7f
         for (it in items) {
+            if (it.lane >= laneCount) continue
             val r = it.x + it.tw
             if (r > rightEdge[it.lane]) rightEdge[it.lane] = r
         }
-        val gap = textSizePx() * 2.2f
-        val free = ArrayList<Int>(LANES)
-        for (l in 0 until LANES) if (rightEdge[l] < right - gap) free.add(l)
+        // 同速前提下，间距在发射瞬间就决定了，之后不会变化 → 只要「上一条的
+        // 右边缘离右边界还有 gap 以上」就算空闲。gap 给到 3 倍字高，视觉上不挤。
+        val gap = textSizePx() * 3f
+        val free = ArrayList<Int>(laneCount)
+        for (l in 0 until laneCount) if (rightEdge[l] <= right - gap) free.add(l)
         return if (free.isEmpty()) null else free[rnd.nextInt(free.size)]
     }
 

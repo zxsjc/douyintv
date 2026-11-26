@@ -204,10 +204,6 @@
         "source": "com.example.douyintv.app-main-13:/xml/file_paths.xml"
     },
     {
-        "merged": "com.example.douyintv.app-debug-11:/drawable_about_qr.jpg.flat",
-        "source": "com.example.douyintv.app-main-13:/drawable/about_qr.jpg"
-    },
-    {
         "merged": "com.example.douyintv.app-debug-11:/drawable-hdpi_ic_nav_settings.png.flat",
         "source": "com.example.douyintv.app-pngs-7:/drawable-hdpi/ic_nav_settings.png"
     },

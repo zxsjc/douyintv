@@ -87,6 +87,44 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/space_xl"
         android:layout_marginBottom="@dimen/space_s"
+        android:text="弹幕显示"
+        android:textColor="@color/text_secondary"
+        android:textSize="@dimen/text_caption" />
+
+    <TextView
+        android:id="@+id/btnDmLines"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/tv_btn_height"
+        android:layout_marginBottom="@dimen/space_s"
+        android:background="@drawable/focus_chip"
+        android:focusable="true"
+        android:focusableInTouchMode="true"
+        android:gravity="center_vertical"
+        android:paddingLeft="@dimen/space_l"
+        android:paddingRight="@dimen/space_l"
+        android:text="弹幕行数：3 行（点击切换 1~5）"
+        android:textColor="@color/btn_text"
+        android:textSize="@dimen/text_body" />
+
+    <TextView
+        android:id="@+id/btnDmPos"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/tv_btn_height"
+        android:background="@drawable/focus_chip"
+        android:focusable="true"
+        android:focusableInTouchMode="true"
+        android:gravity="center_vertical"
+        android:paddingLeft="@dimen/space_l"
+        android:paddingRight="@dimen/space_l"
+        android:text="弹幕位置：屏幕顶部（点击切换 顶部/中部/底部）"
+        android:textColor="@color/btn_text"
+        android:textSize="@dimen/text_body" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/space_xl"
+        android:layout_marginBottom="@dimen/space_s"
         android:text="关于"
         android:textColor="@color/text_secondary"
         android:textSize="@dimen/text_caption" />
@@ -101,7 +139,7 @@
         android:gravity="center_vertical"
         android:paddingLeft="@dimen/space_l"
         android:paddingRight="@dimen/space_l"
-        android:text="ℹ  关于 Dtv（作者 / 主页二维码 / 版本签名校验）"
+        android:text="ℹ  关于 Dtv（版本号与签名指纹）"
         android:textColor="@color/btn_text"
         android:textSize="@dimen/text_body" />
 

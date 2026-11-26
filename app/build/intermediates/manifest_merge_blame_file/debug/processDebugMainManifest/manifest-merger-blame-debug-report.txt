@@ -1,8 +1,8 @@
 1<?xml version="1.0" encoding="utf-8"?>
 2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
 3    package="com.example.douyintv"
-4    android:versionCode="134"
-5    android:versionName="2.34" >
+4    android:versionCode="136"
+5    android:versionName="2.36" >
 6    <!--
 7 ijkplayer-arm64 的 aar 声明 minSdk 21，强制放行：
 8         arm64 设备必然 >=21，低版本走 armeabi-v7a
@@ -197,7 +197,7 @@
 117            android:exported="false" />
 117-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:100:50-74
 118
-119        <!-- 手机遥控 APK 升级安装：文件 URI 用 FileProvider（targetSdk 26 禁止裸 file://） -->
+119        <!-- 在线更新安装：文件 URI 必须走 FileProvider（targetSdk 26 禁止裸 file://） -->
 120        <provider
 121            android:name="androidx.core.content.FileProvider"
 121-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:104:17-66

@@ -99,7 +99,7 @@
 
             <service android:name=".PlayService" android:exported="false" />
 
-            <!-- 手机遥控 APK 升级安装：文件 URI 用 FileProvider（targetSdk 26 禁止裸 file://） -->
+            <!-- 在线更新安装：文件 URI 必须走 FileProvider（targetSdk 26 禁止裸 file://） -->
             <provider
                 android:name="androidx.core.content.FileProvider"
                 android:authorities="${applicationId}.fileprovider"

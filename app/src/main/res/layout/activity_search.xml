@@ -86,16 +86,7 @@
             android:layout_marginTop="@dimen/space_m"
             android:orientation="vertical" />
 
-        <!-- 手机输入（电视上打不了字时的主路径） -->
-        <TextView
-            android:id="@+id/tvPhoneHint"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/space_m"
-            android:lineSpacingExtra="4dp"
-            android:textColor="@color/text_tertiary"
-            android:textSize="@dimen/text_micro" />
-    </LinearLayout>
+            </LinearLayout>
 
     <!-- ==================== ② 右栏：联想 + 结果（两段式，联想不占独立栏） ==================== -->
     <LinearLayout

@@ -102,6 +102,24 @@ class AuthorActivity : Activity() {
             return
         }
         loadMore()
+        loadTotalCount()
+    }
+
+    /** 标题栏补「共 N 个作品」：following/list 不带数量，只能从 profile/other 拿 */
+    private fun loadTotalCount() {
+        val cookie = Prefs.getCookie(this)
+        val sec = secUid
+        Thread {
+            val p = try { DouyinApi.fetchUserProfile(cookie, sec) } catch (_: Throwable) { null }
+            handler.post {
+                if (isFinishing || p == null) return@post
+                if (p.awemeCount > 0) tvSub.text = "共 ${p.awemeCount} 个作品"
+                if (p.nickname.isNotBlank() && p.nickname != authorName) {
+                    authorName = p.nickname
+                    tvTitle.text = TextCompat.forTv("@${authorName}")
+                }
+            }
+        }.start()
     }
 
     private fun loadMore() {
