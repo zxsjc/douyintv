@@ -1,240 +1,219 @@
 1<?xml version="1.0" encoding="utf-8"?>
 2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
 3    package="com.example.douyintv"
-4    android:versionCode="131"
-5    android:versionName="2.31" >
+4    android:versionCode="133"
+5    android:versionName="2.33" >
 6    <!--
 7 ijkplayer-arm64 的 aar 声明 minSdk 21，强制放行：
 8         arm64 设备必然 >=21，低版本走 armeabi-v7a
 9    -->
-10    <!--
-11 ijkplayer-arm64 的 aar 声明 minSdk 21，强制放行：
-12         arm64 设备必然 >=21，低版本走 armeabi-v7a
-13    -->
-14    <uses-sdk
-14-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:16:5-116
-15        android:minSdkVersion="17"
-16        android:targetSdkVersion="26" />
-17
-18    <uses-permission android:name="android.permission.INTERNET" />
-18-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:5:5-67
-18-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:5:22-64
-19    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-19-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:6:5-79
-19-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:6:22-76
-20    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-20-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:7:5-76
-20-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:7:22-73
-21    <uses-permission android:name="android.permission.WAKE_LOCK" />
-21-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:8:5-68
-21-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:8:22-65
-22    <!-- 前台播放服务（Android 8+ 必须显式声明，否则 startForegroundService 抛 SecurityException） -->
-23    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-23-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:10:5-77
-23-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:10:22-74
-24
-25    <application
-25-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:18:5-123:19
-26        android:name="com.example.douyintv.App"
-26-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:19:9-28
-27        android:allowBackup="false"
-27-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:20:9-36
-28        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
-28-->[androidx.core:core:1.7.0] E:\.gradle\caches\8.11.1\transforms\b9a98ec3d9cb0a24fa1581266e2fbd06\transformed\core-1.7.0\AndroidManifest.xml:24:18-86
-29        android:banner="@drawable/tv_banner"
-29-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:24:9-45
-30        android:debuggable="true"
-31        android:extractNativeLibs="true"
-32        android:hardwareAccelerated="true"
-32-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:26:9-43
-33        android:icon="@mipmap/ic_launcher"
-33-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:22:9-43
-34        android:label="@string/app_name"
-34-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:21:9-41
-35        android:roundIcon="@mipmap/ic_launcher_round"
-35-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:23:9-54
-36        android:theme="@style/AppTheme"
-36-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:27:9-40
-37        android:usesCleartextTraffic="true" >
-37-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:25:9-44
-38        <activity
-38-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:29:9-37:20
-39            android:name="com.example.douyintv.MainActivity"
-39-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:29:19-47
-40            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
-40-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:32:13-83
-41            android:exported="true"
-41-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:30:13-36
-42            android:screenOrientation="sensorLandscape" >
-42-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:31:13-56
-43            <intent-filter>
-43-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:33:13-36:29
-44                <action android:name="android.intent.action.MAIN" />
-44-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:34:17-69
-44-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:34:25-66
-45
-46                <category android:name="android.intent.category.LAUNCHER" />
-46-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:35:17-77
-46-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:35:27-74
-47            </intent-filter>
-48        </activity>
-49        <activity
-49-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:39:9-42:86
-50            android:name="com.example.douyintv.SettingsActivity"
-50-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:39:19-51
-51            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
-51-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:42:13-83
-52            android:exported="false"
-52-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:40:13-37
-53            android:screenOrientation="sensorLandscape" />
-53-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:41:13-56
-54        <activity
-54-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:44:9-47:86
-55            android:name="com.example.douyintv.PlayerActivity"
-55-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:44:19-49
-56            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
-56-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:47:13-83
-57            android:exported="false"
-57-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:45:13-37
-58            android:screenOrientation="sensorLandscape" />
-58-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:46:13-56
-59
-60        <!-- 搜索页：热搜榜 + 关键词检索（独立页，返回键回主界面） -->
-61        <activity
-61-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:50:9-53:86
-62            android:name="com.example.douyintv.SearchActivity"
-62-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:50:19-49
-63            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
-63-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:53:13-83
-64            android:exported="false"
-64-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:51:13-37
-65            android:screenOrientation="sensorLandscape" />
-65-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:52:13-56
-66        <activity
-66-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:55:9-59:53
-67            android:name="com.example.douyintv.HotActivity"
-67-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:57:13-40
-68            android:screenOrientation="landscape" />
-68-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:59:13-50
-69        <activity
-69-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:62:9-68:53
-70            android:name="com.example.douyintv.LoginActivity"
-70-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:65:13-42
-71            android:screenOrientation="landscape" />
-71-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:68:13-50
-72        <activity
-72-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:70:9-81
-73            android:name="com.example.douyintv.FollowListActivity"
-73-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:70:19-53
-74            android:exported="false" />
-74-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:70:54-78
-75        <activity
-75-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:71:9-74:86
-76            android:name="com.example.douyintv.AuthorActivity"
-76-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:71:19-49
-77            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
-77-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:74:13-83
-78            android:exported="false"
-78-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:72:13-37
-79            android:screenOrientation="sensorLandscape" />
-79-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:73:13-56
-80
-81        <!-- 观看历史：纯本地记录，按日期分组（侧边栏「历史」进入） -->
-82        <activity
-82-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:77:9-80:86
-83            android:name="com.example.douyintv.HistoryActivity"
-83-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:77:19-50
-84            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
-84-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:80:13-83
-85            android:exported="false"
-85-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:78:13-37
-86            android:screenOrientation="sensorLandscape" />
-86-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:79:13-56
+10    <uses-sdk
+10-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:17:5-116
+11        android:minSdkVersion="17"
+12        android:targetSdkVersion="26" />
+13
+14    <uses-permission android:name="android.permission.INTERNET" />
+14-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:5:5-67
+14-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:5:22-64
+15    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+15-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:6:5-79
+15-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:6:22-76
+16    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+16-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:7:5-76
+16-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:7:22-73
+17    <uses-permission android:name="android.permission.WAKE_LOCK" />
+17-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:8:5-68
+17-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:8:22-65
+18    <!-- 前台播放服务（Android 8+ 必须显式声明，否则 startForegroundService 抛 SecurityException） -->
+19    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+19-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:10:5-77
+19-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:10:22-74
+20    <!--
+21         在线更新：Android 8+ 必须有它，否则 startActivity(APK) 只会静默失败，
+22         系统安装器根本不弹（老版本缺这一条，是「更新下载完却装不上」的主因）
+23    -->
+24    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+24-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:13:5-83
+24-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:13:22-80
+25
+26    <application
+26-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:19:5-112:19
+27        android:name="com.example.douyintv.App"
+27-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:20:9-28
+28        android:allowBackup="false"
+28-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:21:9-36
+29        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+29-->[androidx.core:core:1.7.0] E:\.gradle\caches\8.11.1\transforms\b9a98ec3d9cb0a24fa1581266e2fbd06\transformed\core-1.7.0\AndroidManifest.xml:24:18-86
+30        android:banner="@drawable/tv_banner"
+30-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:25:9-45
+31        android:debuggable="true"
+32        android:extractNativeLibs="true"
+33        android:hardwareAccelerated="true"
+33-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:27:9-43
+34        android:icon="@mipmap/ic_launcher"
+34-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:23:9-43
+35        android:label="@string/app_name"
+35-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:22:9-41
+36        android:roundIcon="@mipmap/ic_launcher_round"
+36-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:24:9-54
+37        android:theme="@style/AppTheme"
+37-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:28:9-40
+38        android:usesCleartextTraffic="true" >
+38-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:26:9-44
+39        <activity
+39-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:30:9-38:20
+40            android:name="com.example.douyintv.MainActivity"
+40-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:30:19-47
+41            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
+41-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:33:13-83
+42            android:exported="true"
+42-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:31:13-36
+43            android:screenOrientation="sensorLandscape" >
+43-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:32:13-56
+44            <intent-filter>
+44-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:34:13-37:29
+45                <action android:name="android.intent.action.MAIN" />
+45-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:35:17-69
+45-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:35:25-66
+46
+47                <category android:name="android.intent.category.LAUNCHER" />
+47-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:36:17-77
+47-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:36:27-74
+48            </intent-filter>
+49        </activity>
+50        <activity
+50-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:40:9-43:86
+51            android:name="com.example.douyintv.SettingsActivity"
+51-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:40:19-51
+52            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
+52-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:43:13-83
+53            android:exported="false"
+53-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:41:13-37
+54            android:screenOrientation="sensorLandscape" />
+54-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:42:13-56
+55        <activity
+55-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:45:9-48:86
+56            android:name="com.example.douyintv.PlayerActivity"
+56-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:45:19-49
+57            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
+57-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:48:13-83
+58            android:exported="false"
+58-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:46:13-37
+59            android:screenOrientation="sensorLandscape" />
+59-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:47:13-56
+60
+61        <!-- 搜索页：热搜榜 + 关键词检索（独立页，返回键回主界面） -->
+62        <activity
+62-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:51:9-54:86
+63            android:name="com.example.douyintv.SearchActivity"
+63-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:51:19-49
+64            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
+64-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:54:13-83
+65            android:exported="false"
+65-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:52:13-37
+66            android:screenOrientation="sensorLandscape" />
+66-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:53:13-56
+67        <activity
+67-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:56:9-60:53
+68            android:name="com.example.douyintv.HotActivity"
+68-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:58:13-40
+69            android:screenOrientation="landscape" />
+69-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:60:13-50
+70        <activity
+70-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:63:9-69:53
+71            android:name="com.example.douyintv.LoginActivity"
+71-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:66:13-42
+72            android:screenOrientation="landscape" />
+72-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:69:13-50
+73        <activity
+73-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:71:9-81
+74            android:name="com.example.douyintv.FollowListActivity"
+74-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:71:19-53
+75            android:exported="false" />
+75-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:71:54-78
+76        <activity
+76-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:72:9-75:86
+77            android:name="com.example.douyintv.AuthorActivity"
+77-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:72:19-49
+78            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
+78-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:75:13-83
+79            android:exported="false"
+79-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:73:13-37
+80            android:screenOrientation="sensorLandscape" />
+80-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:74:13-56
+81
+82        <!--
+83             评论改为右侧悬浮小窗（CommentDialogFragment），
+84             不再需要独立 Activity —— 跳转会暂停视频，体验差。
+85        -->
+86
 87
-88        <!-- 收藏列表（侧边栏「收藏」进入） -->
-89        <activity
-89-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:83:9-86:86
-90            android:name="com.example.douyintv.CollectActivity"
-90-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:83:19-50
-91            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
-91-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:86:13-83
-92            android:exported="false"
-92-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:84:13-37
-93            android:screenOrientation="sensorLandscape" />
-93-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:85:13-56
-94
-95        <!--
-96             评论改为右侧悬浮小窗（CommentDialogFragment），
-97             不再需要独立 Activity —— 跳转会暂停视频，体验差。
-98        -->
-99
-100
-101        <!--
-102             黑方块来源诊断页：纯白底 + 可选 SurfaceView 合成测试。
-103             入口在设置页，不参与正常业务流程。
-104        -->
-105        <activity
-105-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:93:9-96:86
-106            android:name="com.example.douyintv.WhiteTestActivity"
-106-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:93:19-52
-107            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
-107-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:96:13-83
-108            android:exported="false"
-108-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:94:13-37
-109            android:screenOrientation="sensorLandscape" />
-109-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:95:13-56
-110
-111        <!--
-112             接口自检页：实测分类/搜索候选接口，结果直接显示在屏幕上。
-113             纯诊断用途，入口在设置页。
-114        -->
-115        <activity
-115-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:100:9-103:86
-116            android:name="com.example.douyintv.ApiProbeActivity"
-116-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:100:19-51
-117            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
-117-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:103:13-83
-118            android:exported="false"
-118-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:101:13-37
-119            android:screenOrientation="sensorLandscape" />
-119-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:102:13-56
-120
-121        <!-- 关于页：作者 / 主页二维码 / 签名校验（设置 -> 关于） -->
-122        <activity
-122-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:106:9-109:86
-123            android:name="com.example.douyintv.AboutActivity"
-123-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:106:19-48
-124            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
-124-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:109:13-83
-125            android:exported="false"
-125-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:107:13-37
-126            android:screenOrientation="sensorLandscape" />
-126-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:108:13-56
-127
-128        <service
-128-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:111:13-77
-129            android:name="com.example.douyintv.PlayService"
-129-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:111:22-49
-130            android:exported="false" />
-130-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:111:50-74
-131
-132        <!-- 手机遥控 APK 升级安装：文件 URI 用 FileProvider（targetSdk 26 禁止裸 file://） -->
-133        <provider
-134            android:name="androidx.core.content.FileProvider"
-134-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:115:17-66
-135            android:authorities="com.example.douyintv.fileprovider"
-135-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:116:17-68
-136            android:exported="false"
-136-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:117:17-41
-137            android:grantUriPermissions="true" >
-137-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:118:17-51
-138            <meta-data
-138-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:119:17-121:58
-139                android:name="android.support.FILE_PROVIDER_PATHS"
-139-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:120:21-71
-140                android:resource="@xml/file_paths" />
-140-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:121:21-55
-141        </provider>
-142    </application>
-143
-144</manifest>
+88        <!--
+89             黑方块来源诊断页：纯白底 + 可选 SurfaceView 合成测试。
+90             入口在设置页，不参与正常业务流程。
+91        -->
+92        <activity
+92-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:82:9-85:86
+93            android:name="com.example.douyintv.WhiteTestActivity"
+93-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:82:19-52
+94            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
+94-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:85:13-83
+95            android:exported="false"
+95-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:83:13-37
+96            android:screenOrientation="sensorLandscape" />
+96-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:84:13-56
+97
+98        <!--
+99             接口自检页：实测分类/搜索候选接口，结果直接显示在屏幕上。
+100             纯诊断用途，入口在设置页。
+101        -->
+102        <activity
+102-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:89:9-92:86
+103            android:name="com.example.douyintv.ApiProbeActivity"
+103-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:89:19-51
+104            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
+104-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:92:13-83
+105            android:exported="false"
+105-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:90:13-37
+106            android:screenOrientation="sensorLandscape" />
+106-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:91:13-56
+107
+108        <!-- 关于页：作者 / 主页二维码 / 签名校验（设置 -> 关于） -->
+109        <activity
+109-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:95:9-98:86
+110            android:name="com.example.douyintv.AboutActivity"
+110-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:95:19-48
+111            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
+111-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:98:13-83
+112            android:exported="false"
+112-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:96:13-37
+113            android:screenOrientation="sensorLandscape" />
+113-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:97:13-56
+114
+115        <service
+115-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:100:13-77
+116            android:name="com.example.douyintv.PlayService"
+116-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:100:22-49
+117            android:exported="false" />
+117-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:100:50-74
+118
+119        <!-- 手机遥控 APK 升级安装：文件 URI 用 FileProvider（targetSdk 26 禁止裸 file://） -->
+120        <provider
+121            android:name="androidx.core.content.FileProvider"
+121-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:104:17-66
+122            android:authorities="com.example.douyintv.fileprovider"
+122-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:105:17-68
+123            android:exported="false"
+123-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:106:17-41
+124            android:grantUriPermissions="true" >
+124-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:107:17-51
+125            <meta-data
+125-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:108:17-110:58
+126                android:name="android.support.FILE_PROVIDER_PATHS"
+126-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:109:21-71
+127                android:resource="@xml/file_paths" />
+127-->E:\DTV-2.30\app\src\main\AndroidManifest.xml:110:21-55
+128        </provider>
+129    </application>
+130
+131</manifest>

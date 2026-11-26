@@ -46,8 +46,6 @@ object FeedBus {
     const val SOURCE_FOLLOW = "follow"    // 首页「关注」频道：我关注的人的作品
     const val SOURCE_AUTHOR = "author"
     const val SOURCE_SEARCH = "search"
-    const val SOURCE_HISTORY = "history"
-    const val SOURCE_COLLECT = "collect"
     const val SOURCE_SHARE = "share"      // 手机推送的单条视频
 
     /**

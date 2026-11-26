@@ -1,8 +1,8 @@
 {
-    "versionCode":  130,
-    "versionName":  "2.30",
-    "apkUrl":  "https://github.com/Alone2235/DTV/releases/download/v2.30/Dtv-2.30-release.apk",
-    "sha256":  "784d8dc744dc8d108cedd647008bde35948d6283d6f3114fd35a38de03b953fa",
-    "notes":  "1. 画质档位进播放页菜单（切换立即生效）\n2. 修复暂停后按方向键视频划走\n3. 1080P 起步（2.28 修复继续生效）",
-    "force":  false
+    "versionCode": 133,
+    "versionName": "2.33",
+    "apkUrl": "https://github.com/zxsjc/douyintv/releases/download/2.33/Dtv-2.33-debug.apk",
+    "sha256": "",
+    "notes": "1. 修复系统/IJK 播放器竖屏视频被拉宽变形（等比缩放+黑边）\n2. 移除播放历史与收藏模块\n3. 修复在线更新：安装权限、镜像下载、版本号比较",
+    "force": false
 }

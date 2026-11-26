@@ -1,7 +1,7 @@
-#Thu Nov 26 13:24:08 CST 2026
-base.1=E\:\\Documents\\GitHub\\douyintv\\app\\build\\intermediates\\dex\\debug\\mergeDexDebug\\classes2.dex
+#Thu Nov 26 16:08:08 CST 2026
+base.1=E\:\\DTV-2.30\\app\\build\\intermediates\\dex\\debug\\mergeDexDebug\\classes2.dex
 path.1=classes2.dex
-base.0=E\:\\Documents\\GitHub\\douyintv\\app\\build\\intermediates\\dex\\debug\\mergeDexDebug\\classes.dex
+base.0=E\:\\DTV-2.30\\app\\build\\intermediates\\dex\\debug\\mergeDexDebug\\classes.dex
 renamed.1=classes2.dex
 renamed.0=classes.dex
 path.0=classes.dex

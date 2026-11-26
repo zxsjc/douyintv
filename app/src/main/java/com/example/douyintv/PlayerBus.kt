@@ -14,7 +14,7 @@ import android.os.Looper
 object PlayerBus {
 
     interface Listener {
-        /** cmd: next/prev/digg/collect/toggle/pause/play/seek/line/engine/danmaku/loop/landscape/search/push */
+        /** cmd: next/prev/digg/toggle/pause/play/seek/line/engine/danmaku/loop/landscape/search/push */
         fun onCommand(cmd: String, arg: String?)
     }
 
@@ -33,7 +33,6 @@ object PlayerBus {
         @Volatile var durationMs = 0L
         @Volatile var playing = false
         @Volatile var digged = false
-        @Volatile var collected = false
         @Volatile var engine = ""
         @Volatile var danmaku = false
         @Volatile var speed = 1.0f

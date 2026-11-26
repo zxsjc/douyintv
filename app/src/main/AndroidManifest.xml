@@ -8,9 +8,10 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- 前台播放服务（Android 8+ 必须显式声明，否则 startForegroundService 抛 SecurityException） -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- 在线更新：Android 8+ 必须有它，否则 startActivity(APK) 只会静默失败，
+         系统安装器根本不弹（老版本缺这一条，是「更新下载完却装不上」的主因） -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
-    <!-- ijkplayer-arm64 的 aar 声明 minSdk 21，强制放行：
-         arm64 设备必然 >=21，低版本走 armeabi-v7a -->
     <!-- ijkplayer-arm64 的 aar 声明 minSdk 21，强制放行：
          arm64 设备必然 >=21，低版本走 armeabi-v7a -->
     <uses-sdk tools:overrideLibrary="tv.danmaku.ijk.media.player_arm64,com.google.android.exoplayer2.ext.okhttp" />
@@ -69,18 +70,6 @@
 
         <activity android:name=".FollowListActivity" android:exported="false" />
         <activity android:name=".AuthorActivity"
-            android:exported="false"
-            android:screenOrientation="sensorLandscape"
-            android:configChanges="orientation|screenSize|keyboard|keyboardHidden" />
-
-        <!-- 观看历史：纯本地记录，按日期分组（侧边栏「历史」进入） -->
-        <activity android:name=".HistoryActivity"
-            android:exported="false"
-            android:screenOrientation="sensorLandscape"
-            android:configChanges="orientation|screenSize|keyboard|keyboardHidden" />
-
-        <!-- 收藏列表（侧边栏「收藏」进入） -->
-        <activity android:name=".CollectActivity"
             android:exported="false"
             android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|keyboard|keyboardHidden" />

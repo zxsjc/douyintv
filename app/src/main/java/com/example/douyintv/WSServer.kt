@@ -15,7 +15,7 @@ import java.security.MessageDigest
  *
  * · 手机客户端以 ws://电视IP:8090/?uuid=<client_uuid> 连接；
  *   仅接受白名单内 client_uuid（配对成功后 TV 已授权）。
- * · 命令协议：JSON {"cmd":"next|prev|digg|collect|toggle|pause|play|seek|line|
+ * · 命令协议：JSON {"cmd":"next|prev|digg|toggle|pause|play|seek|line|
  *                     engine|danmaku|loop|landscape|speed|search|push|volumeup|
  *                     volumedown|mute|home", "arg":"..."}
  * · 服务端回一帧 {"ok":true}；非法命令回 {"ok":false,"msg":...}
@@ -84,7 +84,7 @@ class WSServer(private val appCtx: Context) : Thread("DTV-WS") {
             val cmd = o.optString("cmd", "")
             val arg = o.optString("arg", "")
             when (cmd) {
-                "next", "prev", "digg", "collect", "toggle", "pause", "play",
+                "next", "prev", "digg", "toggle", "pause", "play",
                 "line", "engine", "danmaku", "loop", "landscape", "speed", "seek" -> {
                     PlayerBus.send(cmd, arg)
                     """{"ok":true}"""

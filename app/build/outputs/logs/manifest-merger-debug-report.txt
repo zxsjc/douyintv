@@ -1,20 +1,20 @@
 -- Merging decision tree log ---
 provider#androidx.core.content.FileProvider
-INJECTED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:114:13-122:24
+INJECTED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:103:13-111:24
 	android:grantUriPermissions
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:118:17-51
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:107:17-51
 	android:authorities
-		INJECTED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:116:17-68
+		INJECTED from E:\DTV-2.30\app\src\main\AndroidManifest.xml
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:105:17-68
 	android:exported
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:117:17-41
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:106:17-41
 	android:name
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:115:17-66
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:104:17-66
 manifest
-ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:2:1-125:12
-INJECTED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:2:1-125:12
-INJECTED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:2:1-125:12
-INJECTED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:2:1-125:12
+ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:2:1-114:12
+INJECTED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:2:1-114:12
+INJECTED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:2:1-114:12
+INJECTED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:2:1-114:12
 MERGED from [androidx.multidex:multidex:2.0.1] E:\.gradle\caches\8.11.1\transforms\f1f6c03f08af4bdf627009079bb8c33a\transformed\multidex-2.0.1\AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.recyclerview:recyclerview:1.0.0] E:\.gradle\caches\8.11.1\transforms\3d64e393b0785e19d01e3cb33233ab00\transformed\recyclerview-1.0.0\AndroidManifest.xml:17:1-22:12
 MERGED from [com.google.android.exoplayer:exoplayer-core:2.18.1] E:\.gradle\caches\8.11.1\transforms\e1a23f3fbe1005213d7de38bc35eae72\transformed\exoplayer-core-2.18.1\AndroidManifest.xml:17:1-26:12
@@ -50,43 +50,47 @@ MERGED from [androidx.arch.core:core-runtime:2.1.0] E:\.gradle\caches\8.11.1\tra
 MERGED from [androidx.lifecycle:lifecycle-viewmodel:2.0.0] E:\.gradle\caches\8.11.1\transforms\d15f39e7e3a1907a6a64b0aa6e915b3a\transformed\lifecycle-viewmodel-2.0.0\AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.annotation:annotation-experimental:1.1.0] E:\.gradle\caches\8.11.1\transforms\321b4736f206faf974c6108c96a98e20\transformed\annotation-experimental-1.1.0\AndroidManifest.xml:17:1-24:12
 	package
-		INJECTED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml
+		INJECTED from E:\DTV-2.30\app\src\main\AndroidManifest.xml
 	android:versionName
-		INJECTED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml
+		INJECTED from E:\DTV-2.30\app\src\main\AndroidManifest.xml
 	xmlns:tools
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:3:5-51
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:3:5-51
 	android:versionCode
-		INJECTED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml
+		INJECTED from E:\DTV-2.30\app\src\main\AndroidManifest.xml
 	xmlns:android
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:2:11-69
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:2:11-69
 uses-permission#android.permission.INTERNET
-ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:5:5-67
+ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:5:5-67
 	android:name
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:5:22-64
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:5:22-64
 uses-permission#android.permission.ACCESS_NETWORK_STATE
-ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:6:5-79
+ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:6:5-79
 MERGED from [com.google.android.exoplayer:exoplayer-core:2.18.1] E:\.gradle\caches\8.11.1\transforms\e1a23f3fbe1005213d7de38bc35eae72\transformed\exoplayer-core-2.18.1\AndroidManifest.xml:24:5-79
 MERGED from [com.google.android.exoplayer:exoplayer-core:2.18.1] E:\.gradle\caches\8.11.1\transforms\e1a23f3fbe1005213d7de38bc35eae72\transformed\exoplayer-core-2.18.1\AndroidManifest.xml:24:5-79
 MERGED from [com.google.android.exoplayer:exoplayer-common:2.18.1] E:\.gradle\caches\8.11.1\transforms\97d8fb81eece35556924ff57aeda48c7\transformed\exoplayer-common-2.18.1\AndroidManifest.xml:24:5-79
 MERGED from [com.google.android.exoplayer:exoplayer-common:2.18.1] E:\.gradle\caches\8.11.1\transforms\97d8fb81eece35556924ff57aeda48c7\transformed\exoplayer-common-2.18.1\AndroidManifest.xml:24:5-79
 	android:name
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:6:22-76
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:6:22-76
 uses-permission#android.permission.ACCESS_WIFI_STATE
-ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:7:5-76
+ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:7:5-76
 	android:name
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:7:22-73
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:7:22-73
 uses-permission#android.permission.WAKE_LOCK
-ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:8:5-68
+ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:8:5-68
 	android:name
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:8:22-65
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:8:22-65
 uses-permission#android.permission.FOREGROUND_SERVICE
-ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:10:5-77
+ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:10:5-77
 	android:name
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:10:22-74
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:10:22-74
+uses-permission#android.permission.REQUEST_INSTALL_PACKAGES
+ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:13:5-83
+	android:name
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:13:22-80
 uses-sdk
-ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:16:5-116
-INJECTED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:16:5-116
-INJECTED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:16:5-116
+ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:17:5-116
+INJECTED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:17:5-116
+INJECTED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:17:5-116
 MERGED from [androidx.multidex:multidex:2.0.1] E:\.gradle\caches\8.11.1\transforms\f1f6c03f08af4bdf627009079bb8c33a\transformed\multidex-2.0.1\AndroidManifest.xml:20:5-43
 MERGED from [androidx.multidex:multidex:2.0.1] E:\.gradle\caches\8.11.1\transforms\f1f6c03f08af4bdf627009079bb8c33a\transformed\multidex-2.0.1\AndroidManifest.xml:20:5-43
 MERGED from [androidx.recyclerview:recyclerview:1.0.0] E:\.gradle\caches\8.11.1\transforms\3d64e393b0785e19d01e3cb33233ab00\transformed\recyclerview-1.0.0\AndroidManifest.xml:20:5-44
@@ -156,14 +160,14 @@ MERGED from [androidx.lifecycle:lifecycle-viewmodel:2.0.0] E:\.gradle\caches\8.1
 MERGED from [androidx.annotation:annotation-experimental:1.1.0] E:\.gradle\caches\8.11.1\transforms\321b4736f206faf974c6108c96a98e20\transformed\annotation-experimental-1.1.0\AndroidManifest.xml:20:5-22:41
 MERGED from [androidx.annotation:annotation-experimental:1.1.0] E:\.gradle\caches\8.11.1\transforms\321b4736f206faf974c6108c96a98e20\transformed\annotation-experimental-1.1.0\AndroidManifest.xml:20:5-22:41
 	tools:overrideLibrary
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:16:15-113
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:17:15-113
 	android:targetSdkVersion
-		INJECTED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml
+		INJECTED from E:\DTV-2.30\app\src\main\AndroidManifest.xml
 	android:minSdkVersion
-		INJECTED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml
+		INJECTED from E:\DTV-2.30\app\src\main\AndroidManifest.xml
 application
-ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:18:5-123:19
-INJECTED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:18:5-123:19
+ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:19:5-112:19
+INJECTED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:19:5-112:19
 MERGED from [org.conscrypt:conscrypt-android:2.5.2] E:\.gradle\caches\8.11.1\transforms\19d5d994b589113949d2d6074839b339\transformed\conscrypt-android-2.5.2\AndroidManifest.xml:11:5-20
 MERGED from [org.conscrypt:conscrypt-android:2.5.2] E:\.gradle\caches\8.11.1\transforms\19d5d994b589113949d2d6074839b339\transformed\conscrypt-android-2.5.2\AndroidManifest.xml:11:5-20
 MERGED from [androidx.core:core:1.7.0] E:\.gradle\caches\8.11.1\transforms\b9a98ec3d9cb0a24fa1581266e2fbd06\transformed\core-1.7.0\AndroidManifest.xml:24:5-89
@@ -171,164 +175,144 @@ MERGED from [androidx.core:core:1.7.0] E:\.gradle\caches\8.11.1\transforms\b9a98
 MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] E:\.gradle\caches\8.11.1\transforms\4460bb82749c406a543bab32d9ceb134\transformed\versionedparcelable-1.1.1\AndroidManifest.xml:24:5-25:19
 MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] E:\.gradle\caches\8.11.1\transforms\4460bb82749c406a543bab32d9ceb134\transformed\versionedparcelable-1.1.1\AndroidManifest.xml:24:5-25:19
 	android:extractNativeLibs
-		INJECTED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml
+		INJECTED from E:\DTV-2.30\app\src\main\AndroidManifest.xml
 	android:appComponentFactory
 		ADDED from [androidx.core:core:1.7.0] E:\.gradle\caches\8.11.1\transforms\b9a98ec3d9cb0a24fa1581266e2fbd06\transformed\core-1.7.0\AndroidManifest.xml:24:18-86
 	android:label
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:21:9-41
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:22:9-41
 	android:hardwareAccelerated
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:26:9-43
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:27:9-43
 	android:roundIcon
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:23:9-54
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:24:9-54
 	android:icon
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:22:9-43
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:23:9-43
 	android:allowBackup
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:20:9-36
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:21:9-36
 	android:banner
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:24:9-45
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:25:9-45
 	android:theme
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:27:9-40
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:28:9-40
 	android:usesCleartextTraffic
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:25:9-44
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:26:9-44
 	android:name
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:19:9-28
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:20:9-28
 activity#com.example.douyintv.MainActivity
-ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:29:9-37:20
+ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:30:9-38:20
 	android:screenOrientation
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:31:13-56
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:32:13-56
 	android:exported
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:30:13-36
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:31:13-36
 	android:configChanges
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:32:13-83
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:33:13-83
 	android:name
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:29:19-47
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:30:19-47
 intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
-ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:33:13-36:29
+ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:34:13-37:29
 action#android.intent.action.MAIN
-ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:34:17-69
+ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:35:17-69
 	android:name
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:34:25-66
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:35:25-66
 category#android.intent.category.LAUNCHER
-ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:35:17-77
+ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:36:17-77
 	android:name
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:35:27-74
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:36:27-74
 activity#com.example.douyintv.SettingsActivity
-ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:39:9-42:86
+ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:40:9-43:86
 	android:screenOrientation
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:41:13-56
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:42:13-56
 	android:exported
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:40:13-37
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:41:13-37
 	android:configChanges
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:42:13-83
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:43:13-83
 	android:name
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:39:19-51
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:40:19-51
 activity#com.example.douyintv.PlayerActivity
-ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:44:9-47:86
+ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:45:9-48:86
 	android:screenOrientation
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:46:13-56
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:47:13-56
 	android:exported
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:45:13-37
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:46:13-37
 	android:configChanges
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:47:13-83
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:48:13-83
 	android:name
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:44:19-49
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:45:19-49
 activity#com.example.douyintv.SearchActivity
-ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:50:9-53:86
+ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:51:9-54:86
 	android:screenOrientation
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:52:13-56
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:53:13-56
 	android:exported
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:51:13-37
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:52:13-37
 	android:configChanges
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:53:13-83
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:54:13-83
 	android:name
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:50:19-49
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:51:19-49
 activity#com.example.douyintv.HotActivity
-ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:55:9-59:53
+ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:56:9-60:53
 	android:screenOrientation
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:59:13-50
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:60:13-50
 	android:name
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:57:13-40
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:58:13-40
 activity#com.example.douyintv.LoginActivity
-ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:62:9-68:53
+ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:63:9-69:53
 	android:screenOrientation
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:68:13-50
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:69:13-50
 	android:name
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:65:13-42
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:66:13-42
 activity#com.example.douyintv.FollowListActivity
-ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:70:9-81
+ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:71:9-81
 	android:exported
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:70:54-78
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:71:54-78
 	android:name
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:70:19-53
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:71:19-53
 activity#com.example.douyintv.AuthorActivity
-ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:71:9-74:86
+ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:72:9-75:86
 	android:screenOrientation
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:73:13-56
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:74:13-56
 	android:exported
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:72:13-37
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:73:13-37
 	android:configChanges
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:74:13-83
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:75:13-83
 	android:name
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:71:19-49
-activity#com.example.douyintv.HistoryActivity
-ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:77:9-80:86
-	android:screenOrientation
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:79:13-56
-	android:exported
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:78:13-37
-	android:configChanges
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:80:13-83
-	android:name
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:77:19-50
-activity#com.example.douyintv.CollectActivity
-ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:83:9-86:86
-	android:screenOrientation
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:85:13-56
-	android:exported
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:84:13-37
-	android:configChanges
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:86:13-83
-	android:name
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:83:19-50
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:72:19-49
 activity#com.example.douyintv.WhiteTestActivity
-ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:93:9-96:86
+ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:82:9-85:86
 	android:screenOrientation
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:95:13-56
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:84:13-56
 	android:exported
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:94:13-37
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:83:13-37
 	android:configChanges
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:96:13-83
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:85:13-83
 	android:name
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:93:19-52
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:82:19-52
 activity#com.example.douyintv.ApiProbeActivity
-ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:100:9-103:86
+ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:89:9-92:86
 	android:screenOrientation
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:102:13-56
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:91:13-56
 	android:exported
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:101:13-37
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:90:13-37
 	android:configChanges
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:103:13-83
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:92:13-83
 	android:name
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:100:19-51
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:89:19-51
 activity#com.example.douyintv.AboutActivity
-ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:106:9-109:86
+ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:95:9-98:86
 	android:screenOrientation
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:108:13-56
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:97:13-56
 	android:exported
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:107:13-37
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:96:13-37
 	android:configChanges
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:109:13-83
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:98:13-83
 	android:name
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:106:19-48
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:95:19-48
 service#com.example.douyintv.PlayService
-ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:111:13-77
+ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:100:13-77
 	android:exported
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:111:50-74
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:100:50-74
 	android:name
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:111:22-49
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:100:22-49
 meta-data#android.support.FILE_PROVIDER_PATHS
-ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:119:17-121:58
+ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:108:17-110:58
 	android:resource
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:121:21-55
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:110:21-55
 	android:name
-		ADDED from E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:120:21-71
+		ADDED from E:\DTV-2.30\app\src\main\AndroidManifest.xml:109:21-71

@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- FileProvider 路径表：只暴露 filesDir/update.apk（手机遥控上传的升级包） -->
+<!-- FileProvider 路径表：暴露 filesDir 根（在线更新 update.apk / 手机遥控上传的升级包都在这里）。
+     注意不能把 path 指向具体文件：FileProvider 要求 URI 文件「位于」root 之下，
+     直接写 path="update.apk" 会抛越界异常 → 安装器永远唤不起来。 -->
 <paths>
-    <files-path name="update" path="update.apk" />
+    <files-path name="update" path="." />
 </paths>

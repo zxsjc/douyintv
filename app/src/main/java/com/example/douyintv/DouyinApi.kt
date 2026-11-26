@@ -66,7 +66,7 @@ object DouyinApi {
         val topics: List<String> = emptyList(),  // 话题名（来自 text_extra）
         val altUrls: List<String> = emptyList(), // 备用播放地址（主链失效时依次重试）
         val isPortrait: Boolean = false,          // 竖屏视频 —— 卡片角标用（解析层按宽高判定）
-        val ts: Long = 0,                          // 观看时间戳（本地历史用，接口解析恒为 0）
+        val ts: Long = 0,                          // 预留时间戳字段（接口解析恒为 0）
         val imageUrls: List<String> = emptyList(), // ★ 图文/图集作品（无 play_addr，播放器走图片轮播）
         val createTime: Long = 0                   // ★ 作品发布日期（Unix 秒，来自 create_time）
     ) {
@@ -1580,7 +1580,7 @@ object DouyinApi {
     /**
      * 作者作品列表的会话内缓存（按 sec_uid）。
      *
-     * 为什么需要：收藏 / 历史里同一位作者常有好几条旧视频，逐条去翻作者作品
+     * 为什么需要：同一作者常有好几条视频要取地址，逐条去翻作者作品
      * 会把同一次请求重复做很多遍（每页 1~3 秒）。缓存后同一作者只翻一次，
      * 后面几条瞬间命中 —— 这是「旧记录要等很久才能播」的主要提速点。
      */
@@ -1592,7 +1592,7 @@ object DouyinApi {
         var pages: Int
     )
 
-    // ★ 线程安全：prefetchNeighbors 会按作者分组开多个线程并发写缓存，
+    // ★ 线程安全：作者页与主页可能并发请求，多条线程会同时写缓存，
     //   普通 HashMap 并发写可能结构损坏 → 换 ConcurrentHashMap。
     private val authorPostsCache = java.util.concurrent.ConcurrentHashMap<String, AuthorPostsCacheEntry>()
     /** detail 通道上次失败时刻；0 = 可用。失败后冷却期内不再打（避免刷屏 + 省 1~2s/条） */
@@ -1637,7 +1637,7 @@ object DouyinApi {
     }
 
     /**
-     * 拿到某条视频的「新鲜」播放地址（收藏 / 历史里存的是当初的直链，签名隔天失效）。
+     * 拿到某条视频的「新鲜」播放地址（列表里存的是当初的直链，签名隔天失效）。
      *
      * ① detail 快速通道：失败后冷却 60 秒再试（不再永久禁用），成功即恢复。
      *    既避免风控下每次 1~2 秒的无效请求，也不会因一次竖屏/波动把通道废掉。
@@ -1646,14 +1646,14 @@ object DouyinApi {
      * ③ 找不到返回 null，由上层提示换线路/换引擎（此时换线路会触发重新解析）。
      */
     /**
-     * ★ 历史/收藏起播提速的最快通道 ★
+     * ★ 旧直链刷新提速的最快通道 ★
      * 直接打长效播放接口 /aweme/v1/play/?aweme_id=xxx —— 它每次都会 302 到
      * 当前有效的 CDN 直链（签名是新鲜的）。一次轻量 GET 即可，不依赖 detail
      * 接口是否被风控、也不需要翻作者作品列表（那要 5 次网络、十几秒）。
      * 返回的 VideoItem 里视频地址就是 302 后的最终地址。
      */
     /**
-     * ★ 历史/收藏「最新连接」直取入口 ★
+     * ★ 「最新连接」直取入口 ★
      * 长效播放接口每次请求都会 302 到当前有效的 CDN 直链（签名新鲜），
      * 一次轻量 GET 即可拿到最新地址，不必先拿过期直链卡满看门狗。
      */
@@ -1694,7 +1694,7 @@ object DouyinApi {
 
     fun refreshVideoUrl(cookie: String, item: VideoItem): VideoItem? {
         // ⓪ 最快通道：长效 play 接口一次 302 拿新鲜直链 ——
-        //    历史/收藏旧记录签名过期，先走这条（一次轻量请求），
+        //    列表里的旧地址签名过期，先走这条（一次轻量请求），
         //    比 detail（常被风控）和翻作者列表（5 次请求）都快得多。
         refreshViaPlayApi(cookie, item)?.let { return it }
 
@@ -1717,12 +1717,12 @@ object DouyinApi {
         //    修复要点：旧代码在这里手写 repeat(3){ fetchUserPosts }，翻到的结果既不
         //    写缓存也不复用缓存 —— 同一作者的多条旧记录各翻各的，每条十几秒。
         //    cachedAuthorPosts 会边翻边入缓存，同一作者后续条目零网络命中。
-        //    翻 5 页（100 条）覆盖绝大多数「早些时间」的收藏 / 历史。
+        //    翻 5 页（100 条）覆盖绝大多数「较早发布」的作品。
         val posts = cachedAuthorPosts(cookie, item.secUid, pages = 5)
         return posts.firstOrNull { it.awemeId == item.awemeId }
     }
 
-    // 互动操作（点赞/收藏/评论）★ 写操作 ★
+    // 互动操作（点赞/评论）★ 写操作 ★
     // 真实抓包结构（用户提供的 DevTools 抓包，2026-10-09）：
     //   POST /aweme/v1/web/commit/item/digg/?
     //        device_platform…round_trip_time=100
@@ -1738,10 +1738,6 @@ object DouyinApi {
     fun diggVideo(cookie: String, awemeId: String, digg: Boolean): InteractResult =
         interactPostForm("https://www.douyin.com/aweme/v1/web/commit/item/digg/", cookie,
             "aweme_id=" + awemeId + "&item_type=0&type=" + (if (digg) "1" else "0"))
-
-    fun collectVideo(cookie: String, awemeId: String, collect: Boolean): InteractResult =
-        interactPostForm("https://www.douyin.com/aweme/v1/web/commit/item/collect/", cookie,
-            "aweme_id=" + awemeId + "&type=" + (if (collect) "1" else "0"))
 
     /**
      * 互动接口的公共浏览器指纹参数（字段顺序照抄抓包）。

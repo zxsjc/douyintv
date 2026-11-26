@@ -4,6 +4,32 @@
 > 每版留档：源码备份在 _BACKUP_Dtv_v<版本>，APK 留档在 artifacts/apk/TVDouyinNative/。
 > 版本号规则：十进制小进位（1.99 → 2.00 → 2.01）；versionCode 单调递增（Android 升级判断）。
 
+## 2.33（versionCode 133）
+
+**① 三类播放器竖屏视频变形（系统 / IJK / Exo）**
+- 根因：`applySurfaceScale` 的「极端比例保护」用 `sx < 0.5f || sy < 0.5f` 当判据。9:16 竖屏在 16:9 屏上 `sx = 0.5625/1.7778 = 0.316`，必然触发保护 → 直接放弃图层缩放、拉满全屏，画面横向拉宽 3.16 倍。
+- 修复：改为按等比缩放后的**实际像素尺寸**判定（`isUnusableScale`：`viewW*sx < 120px || viewH*sy < 120px`），只有 1:20 长图这类真·细线才放弃等比；`resyncGeometryIfNeeded` 对拉伸类引擎提前 return，避免每秒自愈刷日志。真机三引擎实测均为等比 + 黑边。
+
+**② 删除播放历史 / 收藏模块（含全部关联代码）**
+- 删除 `HistoryActivity`、`CollectActivity` 及其布局引用、两个侧栏图标资源。
+- `PlayerActivity`：收藏按钮、菜单「收藏」项（后续菜单索引整体前移）、遥控 `collect` 命令、全部历史/收藏上报、本地换链/重试/起播提速分支、邻接视频预取机制（`prefetchNeighbors` 等）。
+- `Prefs`：收藏读写、观看历史（HISTORY_MAX/addHistory/getHistory/clearHistory 等）；保留点赞与搜索历史。
+- `ConfigServer`：`/lists` 路由、`history`/`collect` 打开页、status 里的 `collected`、手机页收藏按钮与「历史/收藏」卡片。
+- `FeedBus`/`PlayerBus`/`WSServer` 的 SOURCE_HISTORY/SOURCE_COLLECT 与命令白名单同步清理；`DouyinApi.collectVideo` 删除。
+
+**③ 在线更新（GitHub Releases）修正**
+- 缺 `REQUEST_INSTALL_PACKAGES` 权限：Android 8+ 无此权限时 `startActivity(APK)` 只会静默失败，安装器根本不弹（实测本机 Android 10 盒子确实被拦）。
+- `file_paths.xml` 把 `path` 写成具体文件 `update.apk`：FileProvider 要求 URI 文件位于 root 之下，直接指向文件会抛越界异常（`length=48; index=49`）→ 安装器永远唤不起来。改为 `path="."`。
+- 下载加镜像回退（github 直连 → ghfast.top → gh-proxy）+ APK 合法性校验（≥3MB 且 PK 头），避免网关拦截返回 HTML 被当安装包。
+- 版本号换算修正：`versionNameToCode` 旧实现把 "2.33" 算成 233，与真实 versionCode 133 差 100，走 versionCode 兜底会「永远有新版」；现按 build.gradle 十进制小进位规则（(major-1)*100+minor）。
+- 版本字符串容错（`v2.33` / `2.33-beta` / `2.33.1`）；多 APK 时优先 32 位包。
+- 「稍后」记住该版本，不再每次启动弹窗；下载加进度条；缺安装权限时自动跳系统授权页并提示。
+
+**④ 全代码审查附带修复**
+- 手机遥控页 `pair()` 读服务端不回显的 `j.code`（显示 undefined）→ 改为本地文案。
+- 手机遥控 APK 安装统一走 `UpdateChecker.install`（带合法性校验 + 权限检查）。
+- 清掉历史/收藏遗留的死注释与死代码。
+
 ## 2.31-fix6（本地修复版，未升 versionCode）fix5 回归修复
 
 **背景**：fix5 引入两处回归 —— 默认线路1全部缓冲、换线路2后画面变形。本版回退并改用正确解法。
@@ -130,7 +156,8 @@
 
 **外部唤醒入口（此前只能从 App 内点）**
 - 新增可外部调用指令：checkupdate（检查更新并弹窗）、upgrade（直接下载安装）、
-  settings / bout / home（拉起对应页面）、exit（退出）、eload（重载视频）
+  settings / bout / home（拉起对应页面）、exit（退出）、
+eload（重载视频）
 - 配合 2.18 的方向键/OK/返回/菜单注入，遥控端与外部工具都能完整驱动电视端
 
 ## 2.18（2026-10-13）补齐遥控器缺口：方向键 / OK / 返回 / 菜单

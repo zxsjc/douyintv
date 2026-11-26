@@ -26,7 +26,7 @@ object Prefs {
     }
 
     // ---- 浏览器真实 UA（登录推送时由推送页 JS 捕获）----
-    // ★ 写操作（点赞/收藏/评论）风控要求：请求 UA 必须与登录会话的浏览器一致，
+    // ★ 写操作（点赞/评论）风控要求：请求 UA 必须与登录会话的浏览器一致，
     //   否则按「异地登录」处理 → 踢下线网页端 + 返回未登录。
     fun getBrowserUa(): String = App.appContext()?.let { ctx(it).getString("browser_ua", "") ?: "" } ?: ""
     fun setBrowserUa(context: Context, v: String) = ctx(context).edit().putString("browser_ua", v).apply()
@@ -68,7 +68,7 @@ object Prefs {
     }
 
     // ---- WebProtect 凭据（EC 签名 + ticket，myDV 方案）----
-    // 互动接口（点赞/收藏/评论）强制要求 WebProtect 层：
+    // 互动接口（点赞/评论）强制要求 WebProtect 层：
     //   · ec_privateKey：浏览器 web_protect.js 生成的 EC P256 私钥（LocalStorage）
     //   · ticket / ts_sign / server_cert：SDK 与服务器握手拿到的票据（LocalStorage）
     // 由用户从浏览器 LocalStorage 提取后导入（myDV 同款流程），App 用它复刻 EC 签名。
@@ -225,6 +225,10 @@ object Prefs {
     fun getUpdateUrl(): String = App.appContext()?.let { ctx(it).getString("update_url", "") ?: "" } ?: ""
     fun setUpdateUrl(context: Context, v: String) = ctx(context).edit().putString("update_url", v).apply()
 
+    /** 用户点了「稍后」的版本号：同一个版本不再每次启动都弹窗 */
+    fun getSkipVersion(context: Context): String = ctx(context).getString("skip_version", "") ?: ""
+    fun setSkipVersion(context: Context, v: String) = ctx(context).edit().putString("skip_version", v).apply()
+
     // ---- 弹幕开关（默认关） ----
     fun getDanmaku(): Boolean = App.appContext()?.let { ctx(it).getBoolean("danmaku_on", false) } ?: false
     fun setDanmaku(context: Context, v: Boolean) = ctx(context).edit().putBoolean("danmaku_on", v).apply()
@@ -340,84 +344,17 @@ object Prefs {
     private fun fPlanned(c: Context) = File(c.filesDir, "planned_restart")
     private fun fStreak(c: Context) = File(c.filesDir, "crash_streak")
     private fun fTrace(c: Context) = File(c.filesDir, "restore_trace.txt")
-    private fun fHistory(c: Context) = File(c.filesDir, "history.json")
     private fun fSearchHistory(c: Context) = File(c.filesDir, "search_history.json")
     private fun fDigged(c: Context) = File(c.filesDir, "digged.json")
-    private fun fCollected(c: Context) = File(c.filesDir, "collected.json")
 
     // ================================================================
-    // 点赞 / 收藏状态（本地记忆；点赞存 id 集合，收藏存完整 VideoItem 供列表展示）
+    // 点赞状态（本地记忆；存 id 集合）
     // ================================================================
     /** 点赞：切换状态，返回切换后是否已赞 */
     fun toggleDigg(context: Context, awemeId: String): Boolean =
         toggleSet(fDigged(context), awemeId)
 
     fun isDigged(context: Context, awemeId: String): Boolean = inSet(fDigged(context), awemeId)
-
-    /** 收藏：切换状态（存完整视频信息，供「我的 → 收藏」列表展示） */
-    fun toggleCollect(context: Context, item: DouyinApi.VideoItem): Boolean {
-        return try {
-            val existing = getCollectedItems(context).toMutableList()
-            val now = if (!existing.removeAll { it.awemeId == item.awemeId }) {
-                existing.add(0, item); true
-            } else false
-            val arr = JSONArray()
-            for (v in existing) arr.put(historyItemJson(v))
-            fCollected(context).writeText(arr.toString())
-            now
-        } catch (_: Throwable) { false }
-    }
-
-    fun isCollected(context: Context, awemeId: String): Boolean =
-        getCollectedItems(context).any { it.awemeId == awemeId }
-
-    /** 收藏列表（完整视频信息，最新在前） */
-    fun getCollectedItems(context: Context): List<DouyinApi.VideoItem> {
-        return try {
-            val f = fCollected(context)
-            if (!f.exists()) return emptyList()
-            parseItems(f.readText())
-        } catch (_: Throwable) { emptyList() }
-    }
-
-    /**
-     * 播放地址是带时效签名的，隔天就失效。
-     * 播放器重取到新地址后，把本地记录里的 u（播放地址）也替换掉，
-     * 下次再点就不用再等一次失败重试。
-     */
-    fun updateHistoryUrl(context: Context, item: DouyinApi.VideoItem) =
-        updateUrlIn(fHistory(context), item)
-
-    fun updateCollectUrl(context: Context, item: DouyinApi.VideoItem) =
-        updateUrlIn(fCollected(context), item)
-
-    private fun updateUrlIn(f: File, item: DouyinApi.VideoItem) {
-        try {
-            if (!f.exists()) return
-            val arr = JSONArray(f.readText())
-            for (i in 0 until arr.length()) {
-                val o = arr.optJSONObject(i) ?: continue
-                if (o.optString("id", "") == item.awemeId) {
-                    o.put("u", item.videoUrl)
-                    if (item.coverUrl.isNotBlank()) o.put("c", item.coverUrl)
-                    // ★ 图文作品刷新后同步新的图片列表
-                    if (item.imageUrls.isNotEmpty()) {
-                        val ja = org.json.JSONArray()
-                        item.imageUrls.forEach { ja.put(it) }
-                        o.put("imgs", ja)
-                    }
-                    // ★ 刷新后同步备用线路（尤其长效 /aweme/v1/play/ 地址），
-                    //   使旧记录更新一次后即永久自带快速起播地址
-                    if (item.altUrls.isNotEmpty()) {
-                        val ja = org.json.JSONArray()
-                        item.altUrls.take(8).forEach { ja.put(it) }
-                        o.put("alt", ja)
-                    }
-                }
-            }
-            f.writeText(arr.toString())
-        } catch (_: Throwable) {}
-    }
 
     private fun toggleSet(f: File, id: String): Boolean {
         return try {
@@ -491,115 +428,6 @@ object Prefs {
 
     fun clearSearchHistory(context: Context) {
         try { fSearchHistory(context).delete() } catch (_: Throwable) {}
-    }
-
-    // ================================================================
-    // 观看历史（纯本地，不入库抖音）
-    // ================================================================
-    private const val HISTORY_MAX = 100
-
-    /** 记录一条观看历史（同视频去重，最新在前，上限 100 条） */
-    fun addHistory(context: Context, item: DouyinApi.VideoItem) {
-        try {
-            val f = fHistory(context)
-            val dedup = JSONArray()
-            dedup.put(historyItemJson(item))
-            if (f.exists()) {
-                val old = try { JSONArray(f.readText()) } catch (_: Exception) { JSONArray() }
-                for (i in 0 until old.length()) {
-                    val o = old.optJSONObject(i) ?: continue
-                    if (o.optString("id", "") != item.awemeId) dedup.put(o)
-                }
-            }
-            val keep = JSONArray()
-            for (i in 0 until minOf(dedup.length(), HISTORY_MAX)) {
-                keep.put(dedup.getJSONObject(i))
-            }
-            f.writeText(keep.toString())
-        } catch (_: Throwable) {}
-    }
-
-    /** 读取观看历史（最新在前） */
-    fun getHistory(context: Context): List<DouyinApi.VideoItem> {
-        try {
-            val f = fHistory(context)
-            if (!f.exists()) return emptyList()
-            return parseItems(f.readText())
-        } catch (_: Throwable) {
-            return emptyList()
-        }
-    }
-
-    /** 清空观看历史 */
-    fun clearHistory(context: Context) {
-        try { fHistory(context).delete() } catch (_: Throwable) {}
-    }
-
-    /** 历史 / 收藏共用的 JSON 解析（VideoItem 数组） */
-    private fun parseItems(json: String): List<DouyinApi.VideoItem> {
-        val arr = JSONArray(json)
-        val out = ArrayList<DouyinApi.VideoItem>()
-        for (i in 0 until arr.length()) {
-            val o = arr.optJSONObject(i) ?: continue
-            val imgs = ArrayList<String>()
-            o.optJSONArray("imgs")?.let { ja ->
-                for (k in 0 until ja.length()) {
-                    val u = ja.optString(k, "")
-                    if (u.isNotBlank()) imgs.add(u)
-                }
-            }
-            // ★ 读取持久化的备用线路（含长效接口地址），供起播/换线路立即使用
-            val alts = ArrayList<String>()
-            o.optJSONArray("alt")?.let { ja ->
-                for (k in 0 until ja.length()) {
-                    val u = ja.optString(k, "")
-                    if (u.isNotBlank()) alts.add(u)
-                }
-            }
-            out.add(
-                DouyinApi.VideoItem(
-                    o.optString("id", ""), o.optString("d", ""), o.optString("a", ""),
-                    o.optString("u", ""), o.optString("c", ""), o.optInt("dur", 0),
-                    o.optString("sec", ""), o.optInt("digg", 0), o.optInt("cmt", 0),
-                    emptyList(), alts, o.optBoolean("pt", false),
-                    o.optLong("ts", 0L), imgs, o.optLong("ct", 0L)
-                )
-            )
-        }
-        return out
-    }
-
-    private fun historyItemJson(item: DouyinApi.VideoItem): org.json.JSONObject {
-        val o = org.json.JSONObject()
-        o.put("id", item.awemeId)
-        o.put("d", item.desc)
-        o.put("a", item.author)
-        o.put("u", item.videoUrl)
-        o.put("c", item.coverUrl)
-        o.put("dur", item.duration)
-        o.put("sec", item.secUid)
-        o.put("digg", item.diggCount)
-        o.put("cmt", item.commentCount)
-        o.put("pt", item.isPortrait)
-        // ★ 历史/收藏起播提速：持久化备用线路（含长效 /aweme/v1/play/ 接口地址）。
-        //   只存主链时，主链签名过期后「换线路」只能在一条死链上循环 → 必然失败，
-        //   且每次起播都要联网重取地址（慢）。存下 altUrls 后，主链失效可立即切
-        //   长效接口地址（每次请求 302 到新鲜 CDN），无需等待重新解析。
-        if (item.altUrls.isNotEmpty()) {
-            val ja = org.json.JSONArray()
-            item.altUrls.take(8).forEach { ja.put(it) }
-            o.put("alt", ja)
-        }
-        // ★ 图文作品：持久化图片列表（否则历史/收藏里的图文作品重启后变成空壳）
-        if (item.imageUrls.isNotEmpty()) {
-            val ja = org.json.JSONArray()
-            item.imageUrls.forEach { ja.put(it) }
-            o.put("imgs", ja)
-        }
-        // ★ 作品发布日期，供播放页在「赞 / 评论」后展示
-        if (item.createTime > 0L) o.put("ct", item.createTime)
-        o.put("ts", System.currentTimeMillis())
-        return o
     }
 
     /** 崩溃自愈：播放中实时保存恢复点（同步 + 原子替换，进程瞬死也不丢） */

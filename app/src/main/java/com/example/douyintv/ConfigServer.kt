@@ -98,7 +98,6 @@ class ConfigServer(
             uri == "/apk/upload" -> apkUpload(session)
             uri == "/apk/install" -> apkInstall(session)
             uri == "/cmd" -> cmd(session)
-            uri == "/lists" -> lists(session)
             uri == "/hot" -> hot(session)
             // ★ 手机输入关键词 → 电视执行搜索（电视上打中文很麻烦，手机输入舒服得多）
             uri == "/search" -> doSearch(session)
@@ -276,12 +275,14 @@ class ConfigServer(
         return try {
             val target = File(appCtx.filesDir, "update.apk")
             if (!target.exists()) return newFixedLengthResponse(Response.Status.OK, "text/plain; charset=utf-8", "没找到安装包")
-            val uri = androidx.core.content.FileProvider.getUriForFile(
-                appCtx, appCtx.packageName + ".fileprovider", target)
-            val i = Intent(Intent.ACTION_VIEW)
-            i.setDataAndType(uri, "application/vnd.android.package-archive")
-            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            appCtx.startActivity(i)
+            // 统一走 UpdateChecker.install：它带 APK 合法性校验 + Android 8+ 安装权限检查
+            val ok = UpdateChecker.install(appCtx)
+            if (!ok) {
+                val why = if (UpdateChecker.needsInstallPermission(appCtx))
+                    "失败：缺少「安装未知应用」权限，已在电视上打开授权页，请允许后重试"
+                else "失败：安装包异常（已删除），请重新上传"
+                return newFixedLengthResponse(Response.Status.OK, "text/plain; charset=utf-8", why)
+            }
             newFixedLengthResponse(Response.Status.OK, "text/plain; charset=utf-8", "已唤起安装器，请在电视上点确认")
         } catch (e: Exception) {
             Log.e(TAG, "安装器唤起失败: ${e.message}")
@@ -308,7 +309,7 @@ class ConfigServer(
         val arg = p["arg"]?.firstOrNull() ?: ""
         return try {
             when (action) {
-                "next", "prev", "digg", "collect", "toggle", "pause", "play",
+                "next", "prev", "digg", "toggle", "pause", "play",
                 "line", "engine", "danmaku", "loop", "landscape", "seek" -> {
                     PlayerBus.send(action, arg)
                     newFixedLengthResponse(Response.Status.OK, "text/plain; charset=utf-8", "ok")
@@ -343,8 +344,6 @@ class ConfigServer(
                 "home" -> { openActivity(MainActivity::class.java); okResp() }
                 // 打开发「我的关注」作者列表页（手机遥控器/调试用）
                 "following" -> { openActivity(FollowListActivity::class.java); okResp() }
-                "history" -> { openActivity(HistoryActivity::class.java); okResp() }
-                "collect" -> { openActivity(CollectActivity::class.java); okResp() }
                 "exit" -> {
                     App.currentActivity()?.let { a -> a.runOnUiThread { try { a.finish() } catch (_: Throwable) {} } }
                     okResp()
@@ -377,27 +376,6 @@ class ConfigServer(
             Log.e(TAG, "cmd 失败: ${e.message}", e)
             newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/plain; charset=utf-8", "失败: ${e.message}")
         }
-    }
-
-    /** 手机端历史 / 收藏列表（json；点条目 → push 到电视播放） */
-    private fun lists(session: IHTTPSession): Response {
-        if (!authed(session)) return newFixedLengthResponse(Response.Status.OK, "text/plain; charset=utf-8", "未授权（配对码错误或不在白名单）")
-        val code = session.parameters["code"]?.firstOrNull() ?: ""
-        if (code != Prefs.getPairCode()) return newFixedLengthResponse(Response.Status.OK, "text/plain; charset=utf-8", "配对码错误")
-        val type = session.parameters["type"]?.firstOrNull() ?: "history"
-        val items = when (type) {
-            "collect" -> Prefs.getCollectedItems(appCtx)
-            else -> Prefs.getHistory(appCtx)
-        }
-        val arr = org.json.JSONArray()
-        for (it in items) {
-            val o = org.json.JSONObject()
-            o.put("id", it.awemeId); o.put("title", it.desc); o.put("author", it.author)
-            o.put("cover", it.coverUrl)
-            arr.put(o)
-        }
-        return newFixedLengthResponse(
-            Response.Status.OK, "application/json; charset=utf-8", arr.toString())
     }
 
     private fun hot(session: IHTTPSession): Response {
@@ -513,7 +491,6 @@ class ConfigServer(
         sb.append(",\"dur\":").append(s.durationMs)
         sb.append(",\"playing\":").append(s.playing)
         sb.append(",\"digged\":").append(s.digged)
-        sb.append(",\"collected\":").append(s.collected)
         sb.append(",\"engine\":").append(org.json.JSONObject.quote(s.engine))
         sb.append(",\"danmaku\":").append(s.danmaku)
         sb.append("}}")
@@ -620,7 +597,7 @@ class ConfigServer(
                 if (tsId.isNotBlank()) Prefs.setTsSign(appCtx, tsId)
                 onSaved(c)
                 val missing = Prefs.missingKeyCookies(c)
-                val warn = if (missing.isEmpty()) " ✓ Cookie 完整，可刷视频+点赞收藏"
+                val warn = if (missing.isEmpty()) " ✓ Cookie 完整，可刷视频+点赞"
                     else "\n⚠ 缺少关键 Cookie: ${missing.joinToString(", ")}\n请用浏览器全选复制（含 msToken/webid），否则点赞会被判定未登录"
                 Log.d(TAG, "Cookie 已保存, 长度=${c.length}, 缺=${missing.joinToString(",")}, 自动薅取=${auto.joinToString(",")}")
                 newFixedLengthResponse(
@@ -669,7 +646,7 @@ class ConfigServer(
         }
     }
 
-    /** 手机遥控客户端页面：配对 + 触控板 + 控制按钮 + 搜索 + 推视频 + 历史/收藏列表 */
+    /** 手机遥控客户端页面：配对 + 触控板 + 控制按钮 + 搜索 + 推视频 */
     private fun remotePage(): Response {
         val html = """
 <!DOCTYPE html>
@@ -738,7 +715,6 @@ class ConfigServer(
   <div class="card">
     <div class="grid">
       <button id="bDigg" class="brand" onclick="cmd('digg')">👍 赞</button>
-      <button id="bCollect" onclick="cmd('collect')">⭐ 藏</button>
       <button onclick="cmd('danmaku')">💬 弹幕</button>
       <button onclick="cmd('line')">🔀 线路</button>
       <button onclick="cmd('engine')">🔧 引擎</button>
@@ -768,14 +744,6 @@ class ConfigServer(
     </div>
   </div>
 
-  <div class="card">
-    <div class="row">
-      <button onclick="loadList('history')">观看历史</button>
-      <button onclick="loadList('collect')">我的收藏</button>
-    </div>
-    <div id="list"></div>
-  </div>
-
 <script>
 var code = localStorage.getItem('dtv_code') || '';
 document.getElementById('code').value = code;
@@ -783,8 +751,8 @@ function pair(){
   code = document.getElementById('code').value.trim();
   if(code.length<6){alert('请输入 6 位配对码');return}
   fetch('/pair?code='+code).then(r=>r.json()).then(j=>{
-    if(j.ok){localStorage.setItem('dtv_code', code);setStatus('已配对 ✓ 电视码 '+j.code)}
-    else setStatus('配对失败：码不对（电视码 '+j.code+'）');
+    if(j.ok){localStorage.setItem('dtv_code', code);setStatus('已配对 ✓')}
+    else setStatus('配对失败：配对码不对，请核对电视上显示的码');
   });
 }
 function setStatus(t){document.getElementById('st').textContent = t}
@@ -797,19 +765,6 @@ function hotWords(){
     if(!Array.isArray(j))return;
     var h=document.getElementById('hot');h.innerHTML='';
     j.forEach(w=>{var s=document.createElement('span');s.className='chip';s.textContent=w;s.onclick=function(){cmd('search',w)};h.appendChild(s)});
-  }).catch(()=>{});
-}
-function loadList(type){
-  fetch('/lists?code='+code+'&type='+type).then(r=>r.json()).then(arr=>{
-    var el=document.getElementById('list');
-    if(!Array.isArray(arr)||!arr.length){el.innerHTML='<div class="muted" style="padding:10px 0">暂无内容</div>';return}
-    el.innerHTML='';
-    arr.forEach(v=>{
-      var d=document.createElement('div');d.className='li';
-      d.innerHTML='<img src="'+(v.cover||'')+'"><div><div class="t">'+v.title+'</div><div class="a">@'+(v.author||'')+'</div></div>';
-      d.onclick=function(){cmd('push',v.id)};
-      el.appendChild(d);
-    });
   }).catch(()=>{});
 }
 // 触控板
@@ -835,7 +790,6 @@ function poll(){
     var bar=document.getElementById('bar');
     if(p.dur>0)bar.style.width=(p.pos/p.dur*100)+'%';
     document.getElementById('bDigg').className=p.digged?'brand on':'brand';
-    document.getElementById('bCollect').className=p.collected?'on':'';
   }).catch(()=>{});
 }
 function fmt(ms){ms=ms|0;var s=Math.floor(ms/1000);return (Math.floor(s/60))+':'+('0'+(s%60)).slice(-2)}
@@ -901,7 +855,7 @@ poll();setInterval(poll,1200);hotWords();
   <textarea id="ck" placeholder="支持两种格式：&#10;&#10;1) 分号串：  ttwid=xxx; odin_tt=yyy; ...&#10;&#10;2) Cookie Editor 导出的 JSON 数组&#10;[{&quot;name&quot;:&quot;ttwid&quot;,&quot;value&quot;:&quot;xxx&quot;}, ...]"></textarea>
   <button id="btn" onclick="save()">保存到电视</button>
   <div class="sep"></div>
-  <div class="lab">WebProtect 凭据（点赞/收藏用，可选）</div>
+  <div class="lab">WebProtect 凭据（点赞用，可选）</div>
   <textarea id="wp" class="short" placeholder="浏览器 F12 → Console 执行下面命令复制结果，粘到这里点导入：&#10;&#10;copy(Object.entries(localStorage).filter(x=&gt;x[1].length&gt;40).map(x=&gt;x[0]+&#39;=&#39;+x[1]).join(&#39;\n&#39;))"></textarea>
   <button id="wpbtn" onclick="saveCreds()">导入 WebProtect 凭据</button>
   <div class="sres" id="wpres"></div>
@@ -925,7 +879,7 @@ function refresh(){
       if(j.missing && j.missing.length>0){el.className='status no';extra.push('缺 Cookie: '+j.missing.join('/'))}
       else {el.className='status ok'}
       if(j.wpMissing && j.wpMissing.length>0){extra.push('缺 WebProtect: '+j.wpMissing.join('/'))}
-      el.textContent = extra.length>0 ? '✓ 已配置，但 '+extra.join('；') : '✓ 电视已配置 Cookie + WebProtect，可以点赞/收藏了';
+      el.textContent = extra.length>0 ? '✓ 已配置，但 '+extra.join('；') : '✓ 电视已配置 Cookie + WebProtect，可以点赞了';
     }
     else{el.className='status no';el.textContent='✗ 尚未配置 Cookie'}
   }).catch(function(){});

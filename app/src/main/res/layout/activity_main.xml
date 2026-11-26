@@ -105,40 +105,6 @@
 
         <!-- ★ 个人内容（一步直达） -->
         <FrameLayout
-            android:id="@+id/navHistory"
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/tv_nav_item_height"
-            android:layout_marginBottom="@dimen/tv_nav_item_margin_v"
-            android:background="@drawable/nav_item_bg"
-            android:focusable="true"
-            android:focusableInTouchMode="true"
-            android:contentDescription="历史">
-            <ImageView
-                android:layout_width="@dimen/tv_nav_icon_size"
-                android:layout_height="@dimen/tv_nav_icon_size"
-                android:layout_gravity="center"
-                android:src="@drawable/ic_nav_history"
-                android:contentDescription="@null" />
-        </FrameLayout>
-
-        <FrameLayout
-            android:id="@+id/navCollect"
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/tv_nav_item_height"
-            android:layout_marginBottom="@dimen/tv_nav_item_margin_v"
-            android:background="@drawable/nav_item_bg"
-            android:focusable="true"
-            android:focusableInTouchMode="true"
-            android:contentDescription="收藏">
-            <ImageView
-                android:layout_width="@dimen/tv_nav_icon_size"
-                android:layout_height="@dimen/tv_nav_icon_size"
-                android:layout_gravity="center"
-                android:src="@drawable/ic_nav_collect"
-                android:contentDescription="@null" />
-        </FrameLayout>
-
-        <FrameLayout
             android:id="@+id/navSettings"
             android:layout_width="match_parent"
             android:layout_height="@dimen/tv_nav_item_height"

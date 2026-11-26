@@ -8,24 +8,8 @@
         "source": "com.example.douyintv.app-pngs-7:/drawable-xhdpi/ic_nav_recommend.png"
     },
     {
-        "merged": "com.example.douyintv.app-debug-11:/drawable-hdpi_ic_nav_collect.png.flat",
-        "source": "com.example.douyintv.app-pngs-7:/drawable-hdpi/ic_nav_collect.png"
-    },
-    {
-        "merged": "com.example.douyintv.app-debug-11:/drawable-anydpi-v21_ic_nav_history.xml.flat",
-        "source": "com.example.douyintv.app-pngs-7:/drawable-anydpi-v21/ic_nav_history.xml"
-    },
-    {
-        "merged": "com.example.douyintv.app-debug-11:/drawable-mdpi_ic_nav_history.png.flat",
-        "source": "com.example.douyintv.app-pngs-7:/drawable-mdpi/ic_nav_history.png"
-    },
-    {
         "merged": "com.example.douyintv.app-debug-11:/layout_item_hot_word.xml.flat",
         "source": "com.example.douyintv.app-main-13:/layout/item_hot_word.xml"
-    },
-    {
-        "merged": "com.example.douyintv.app-debug-11:/drawable-mdpi_ic_nav_collect.png.flat",
-        "source": "com.example.douyintv.app-pngs-7:/drawable-mdpi/ic_nav_collect.png"
     },
     {
         "merged": "com.example.douyintv.app-debug-11:/drawable-mdpi_ic_nav_login.png.flat",
@@ -50,14 +34,6 @@
     {
         "merged": "com.example.douyintv.app-debug-11:/mipmap-hdpi_ic_launcher.png.flat",
         "source": "com.example.douyintv.app-main-13:/mipmap-hdpi/ic_launcher.png"
-    },
-    {
-        "merged": "com.example.douyintv.app-debug-11:/drawable-xhdpi_ic_nav_collect.png.flat",
-        "source": "com.example.douyintv.app-pngs-7:/drawable-xhdpi/ic_nav_collect.png"
-    },
-    {
-        "merged": "com.example.douyintv.app-debug-11:/drawable-anydpi-v21_ic_nav_collect.xml.flat",
-        "source": "com.example.douyintv.app-pngs-7:/drawable-anydpi-v21/ic_nav_collect.xml"
     },
     {
         "merged": "com.example.douyintv.app-debug-11:/layout_item_video.xml.flat",
@@ -276,10 +252,6 @@
         "source": "com.example.douyintv.app-main-13:/layout/activity_api_probe.xml"
     },
     {
-        "merged": "com.example.douyintv.app-debug-11:/drawable-xhdpi_ic_nav_history.png.flat",
-        "source": "com.example.douyintv.app-pngs-7:/drawable-xhdpi/ic_nav_history.png"
-    },
-    {
         "merged": "com.example.douyintv.app-debug-11:/drawable_tv_banner.png.flat",
         "source": "com.example.douyintv.app-main-13:/drawable/tv_banner.png"
     },
@@ -310,10 +282,6 @@
     {
         "merged": "com.example.douyintv.app-debug-11:/drawable_focus_chip.xml.flat",
         "source": "com.example.douyintv.app-main-13:/drawable/focus_chip.xml"
-    },
-    {
-        "merged": "com.example.douyintv.app-debug-11:/drawable-hdpi_ic_nav_history.png.flat",
-        "source": "com.example.douyintv.app-pngs-7:/drawable-hdpi/ic_nav_history.png"
     },
     {
         "merged": "com.example.douyintv.app-debug-11:/drawable_scrim_top.xml.flat",

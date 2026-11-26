@@ -243,7 +243,17 @@ class App : MultiDexApplication() {
         super.onCreate()
         appCtx = applicationContext
         DeviceProfile.compute(applicationContext)   // 机型能力检测（软解/硬解、档位、阈值分流）
-        Prefs.ensureInteractCreds(applicationContext)   // ★ 点赞/收藏凭据：本地生成 webid/msToken/uid（首次）
+        Prefs.ensureInteractCreds(applicationContext)   // ★ 点赞凭据：本地生成 webid/msToken/uid（首次）
+        // ★ 2.33 起移除「播放历史 / 我的收藏」模块：把旧版本留下的数据文件清掉，
+        //   老用户升级后不残留任何浏览/收藏痕迹（模块代码已删，这些文件也没人再读）
+        try {
+            for (n in arrayOf("collected.json", "history.json", "lists.json")) {
+                val f = File(filesDir, n)
+                if (f.exists() && f.delete()) Log.i(TAG, "已清理旧模块数据 $n")
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "清理旧模块数据失败: ${t.message}")
+        }
         installConscrypt()
         installGlobalTls()
         installCrashHandler()

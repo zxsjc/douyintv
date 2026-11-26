@@ -61,8 +61,6 @@ class MainActivity : Activity() {
     private lateinit var navRecommend: View
     private lateinit var navFollow: View
     private lateinit var navSearch: View
-    private lateinit var navHistory: View
-    private lateinit var navCollect: View
     private lateinit var navSettings: View
     private lateinit var navLogin: View
 
@@ -210,6 +208,8 @@ class MainActivity : Activity() {
     private fun checkUpdate() {
         Thread {
             val info = try { UpdateChecker.check(this) } catch (_: Throwable) { null } ?: return@Thread
+            // 「稍后」过的版本不再每次启动都弹（点「立即升级」时清掉记录）
+            if (info.versionName == Prefs.getSkipVersion(this)) return@Thread
             handler.post {
                 if (isFinishing) return@post
                 try {
@@ -219,8 +219,11 @@ class MainActivity : Activity() {
                             "当前版本 ${BuildConfig.VERSION_NAME} → 新版本 ${info.versionName}\n\n" +
                             info.notes.ifBlank { "（无更新说明）" } + "\n\n点「立即升级」自动下载并调起安装。"
                         )
-                        .setPositiveButton("立即升级") { _, _ -> downloadAndInstall(info) }
-                        .setNegativeButton("稍后", null)
+                        .setPositiveButton("立即升级") { _, _ ->
+                            Prefs.setSkipVersion(this, "")
+                            downloadAndInstall(info)
+                        }
+                        .setNegativeButton("稍后") { _, _ -> Prefs.setSkipVersion(this, info.versionName) }
                         .setOnDismissListener { showControlsIfAny() }
                         .show()
                 } catch (_: Throwable) {}
@@ -229,16 +232,36 @@ class MainActivity : Activity() {
     }
 
     private fun downloadAndInstall(info: UpdateChecker.Info) {
-        android.widget.Toast.makeText(this, "开始下载更新…", android.widget.Toast.LENGTH_SHORT).show()
+        // 进度条：旧代码只有一句 Toast，下载 7MB 期间界面毫无反馈，看着像没反应
+        val dlg = try {
+            android.app.ProgressDialog(this).apply {
+                setMessage("正在下载 ${info.versionName} …")
+                setProgressStyle(android.app.ProgressDialog.STYLE_HORIZONTAL)
+                setMax(100)
+                setProgress(0)
+                setCancelable(false)
+                show()
+            }
+        } catch (_: Throwable) { null }
         Thread {
             val f = UpdateChecker.download(this, info.apkUrl, info.sha256) { p ->
-                if (p % 25 == 0) Log.d("Update", "下载 $p%")
+                handler.post { try { dlg?.progress = p } catch (_: Throwable) {} }
             }
             handler.post {
+                try { dlg?.dismiss() } catch (_: Throwable) {}
+                if (isFinishing) return@post
                 if (f == null) {
-                    android.widget.Toast.makeText(this, "下载失败，请检查网络", android.widget.Toast.LENGTH_LONG).show()
-                } else {
-                    UpdateChecker.install(this, info.sha256)
+                    android.widget.Toast.makeText(
+                        this, "下载失败（直连与镜像都试过了），请稍后再试或到 GitHub 手动下载",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                } else if (!UpdateChecker.install(this, info.sha256)) {
+                    android.widget.Toast.makeText(
+                        this,
+                        if (UpdateChecker.needsInstallPermission(this)) "请在系统设置里允许本应用「安装未知应用」，再点一次立即升级"
+                        else "安装包异常，已删除，请重新下载",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
                 }
             }
         }.start()
@@ -359,8 +382,6 @@ class MainActivity : Activity() {
         navRecommend = findViewById(R.id.navRecommend)
         navFollow = findViewById(R.id.navFollow)
         navSearch = findViewById(R.id.navSearch)
-        navHistory = findViewById(R.id.navHistory)
-        navCollect = findViewById(R.id.navCollect)
         navSettings = findViewById(R.id.navSettings)
         navLogin = findViewById(R.id.navLogin)
 
@@ -400,14 +421,12 @@ class MainActivity : Activity() {
         navRecommend.setOnClickListener { switchNav(NAV_RECOMMEND) }
         navFollow.setOnClickListener { openFollowList() }
         navSearch.setOnClickListener { openSearch() }
-        navHistory.setOnClickListener { openHistory() }
-        navCollect.setOnClickListener { openCollect() }
         navSettings.setOnClickListener { openSettings() }
         navLogin.setOnClickListener { openLogin() }
     }
 
     private fun navArray(): Array<View> = arrayOf(
-        navRecommend, navFollow, navSearch, navHistory, navCollect, navSettings, navLogin
+        navRecommend, navFollow, navSearch, navSettings, navLogin
     )
 
     /**
@@ -449,14 +468,6 @@ class MainActivity : Activity() {
 
     private fun openSearch() {
         startActivity(Intent(this, SearchActivity::class.java))
-    }
-
-    private fun openHistory() {
-        startActivity(Intent(this, HistoryActivity::class.java))
-    }
-
-    private fun openCollect() {
-        startActivity(Intent(this, CollectActivity::class.java))
     }
 
     /** 「我的关注」作者列表（参考网页 /follow 左侧栏） */
@@ -554,7 +565,7 @@ class MainActivity : Activity() {
         //   旧代码又加了一层 ItemDecoration（右 8dp、下 8dp，且最后一列不加右 gap），
         //   于是「普通列 = 8+8=16dp、最后一列 = 8+0=8dp」——最后一列卡片更宽，
         //   封面 match_parent 跟着变宽 → 同一屏图片大小不一。
-        //   其它页面（历史/收藏/作者/关注）都用卡片自带的 margin，只有这里多了一层，
+        //   其它页面（作者/关注/搜索）都用卡片自带的 margin，只有这里多了一层，
         //   所以直接移除 ItemDecoration，全应用统一靠 XML margin 布局，宽度自然一致。
         //   （不再 addItemDecoration）
 

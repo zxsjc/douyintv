@@ -3,6 +3,8 @@ package com.example.douyintv
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import android.util.Log
 import org.json.JSONObject
 import java.io.File
@@ -87,11 +89,18 @@ object UpdateChecker {
                     val a = assets.optJSONObject(i) ?: continue
                     val name = a.optString("name", "")
                     if (!name.endsWith(".apk", ignoreCase = true)) continue
-                    apkUrl = a.optString("browser_download_url", "")
+                    val url = a.optString("browser_download_url", "")
                     // GitHub 返回形如 "sha256:xxxx"
-                    sha256 = a.optString("digest", "")
+                    val digest = a.optString("digest", "")
                         .removePrefix("sha256:").removePrefix("SHA256:")
-                    break
+                    // 本应用只打 armeabi-v7a：优先挑 32 位包，挑不到才退回第一个 apk
+                    val prefer = name.contains("armeabi-v7a", true) ||
+                        name.contains("arm32", true) || name.contains("v7a", true)
+                    if (apkUrl.isBlank() || prefer) {
+                        apkUrl = url
+                        sha256 = digest
+                        if (prefer) break
+                    }
                 }
             }
             if (apkUrl.isBlank()) {
@@ -131,12 +140,25 @@ object UpdateChecker {
         }
     }
 
-    /** "2.31" → 231；"2.9" → 209；保证十进制小进位单调递增 */
+    /** 取语义化版本里的数字段：兼容 "v2.33" / "2.33-beta" / "2.33.1" */
+    private fun numericParts(name: String): List<Int> {
+        val cleaned = name.trim().removePrefix("v").removePrefix("V")
+        val head = cleaned.split("-", "+", " ").firstOrNull()?.ifBlank { cleaned } ?: cleaned
+        return head.split(".").mapNotNull { it.trim().toIntOrNull() }
+    }
+
+    /**
+     * 版本号换算，必须与 app/build.gradle 的十进制小进位规则一致：
+     * 1.99 → 99，2.00 → 100，2.31 → 131，2.33 → 133。
+     * 旧实现算成 "2.33" → 233，和真实 versionCode 133 差 100，
+     * 一旦走 versionCode 兜底比较就会「永远有新版」。
+     */
     private fun versionNameToCode(name: String): Int {
-        val parts = name.split(".").mapNotNull { it.toIntOrNull() }
-        var code = 0
-        for (p in parts.take(3)) code = code * 100 + p
-        return code
+        val p = numericParts(name)
+        if (p.isEmpty()) return 0
+        val major = p.getOrElse(0) { 0 }
+        val minor = p.getOrElse(1) { 0 }
+        return (major - 1).coerceAtLeast(0) * 100 + minor
     }
 
     /** 与当前安装版本比对；有新版返回 Info，否则 null */
@@ -157,8 +179,8 @@ object UpdateChecker {
 
     /** 语义化版本比较："2.31" > "2.9" > "2.8"。返回 1/0/-1 */
     private fun compareVersion(a: String, b: String): Int {
-        val pa = a.removePrefix("v").split(".").mapNotNull { it.toIntOrNull() }
-        val pb = b.removePrefix("v").split(".").mapNotNull { it.toIntOrNull() }
+        val pa = numericParts(a)
+        val pb = numericParts(b)
         val n = maxOf(pa.size, pb.size)
         for (i in 0 until n) {
             val x = pa.getOrElse(i) { 0 }
@@ -172,8 +194,66 @@ object UpdateChecker {
      * 下载 APK 到 filesDir/update.apk（覆盖旧文件）。
      * onProgress(0..100)；成功返回文件，失败返回 null。
      */
+    /**
+     * 下载地址候选：GitHub 直连 + 国内加速镜像。
+     * GitHub 的 release 资源域名在部分网络下会 404/断流，直连失败就自动换镜像重试，
+     * 避免「检查到新版本却永远下载失败」。
+     */
+    private fun mirrors(url: String): List<String> {
+        if (url.isBlank()) return emptyList()
+        val list = arrayListOf(url)
+        val gh = url.contains("github.com", true) || url.contains("githubusercontent.com", true)
+        if (gh) {
+            list.add("https://ghfast.top/" + url)
+            list.add("https://gh-proxy.com/" + url)
+        }
+        return list
+    }
+
+    /** 粗校验：够大且是 zip(APK) 头。网关拦截/错误页会返回 HTML，绝不能拿去安装 */
+    private fun looksLikeApk(f: File): Boolean {
+        if (!f.exists() || f.length() < 3_000_000L) return false
+        return try {
+            f.inputStream().use { ins ->
+                val b = ByteArray(2)
+                ins.read(b)
+                b[0] == 'P'.code.toByte() && b[1] == 'K'.code.toByte()
+            }
+        } catch (_: Throwable) { false }
+    }
+
     fun download(ctx: Context, apkUrl: String, expectedSha256: String = "", onProgress: (Int) -> Unit = {}): File? {
         val target = File(ctx.filesDir, "update.apk")
+        val list = mirrors(apkUrl)
+        for ((idx, u) in list.withIndex()) {
+            if (idx > 0) Log.w(TAG, "换镜像重试：$u")
+            onProgress(0)
+            val got = try {
+                downOne(ctx, u, target, onProgress)
+            } catch (e: Exception) {
+                Log.w(TAG, "下载失败(${e.message})：$u")
+                null
+            }
+            if (got == null || !got.exists()) continue
+            if (!looksLikeApk(got)) {
+                Log.e(TAG, "下到的不是 APK（${got.length()} 字节），丢弃换源")
+                got.delete()
+                continue
+            }
+            if (expectedSha256.isNotBlank() &&
+                !sha256Of(got).equals(expectedSha256.trim().lowercase(), ignoreCase = true)) {
+                Log.e(TAG, "SHA-256 校验失败，换源重下")
+                got.delete()
+                continue
+            }
+            onProgress(100)
+            return got
+        }
+        Log.e(TAG, "所有下载地址均失败：$apkUrl")
+        return null
+    }
+
+    private fun downOne(ctx: Context, apkUrl: String, target: File, onProgress: (Int) -> Unit): File? {
         return try {
             val conn = (URL(apkUrl).openConnection() as HttpURLConnection).apply {
                 connectTimeout = 10000
@@ -201,13 +281,6 @@ object UpdateChecker {
                 }
             }
             conn.disconnect()
-            onProgress(100)
-            // ★ 下载完成 → SHA-256 校验（version.json 提供期望值，防篡改/防坏包）
-            if (expectedSha256.isNotBlank() && !sha256Of(target).equals(expectedSha256.trim().lowercase(), ignoreCase = true)) {
-                Log.e(TAG, "SHA-256 校验失败，拒绝安装（期望 ${expectedSha256.take(12)}… 实际 ${sha256Of(target).take(12)}…）")
-                target.delete()
-                return null
-            }
             target
         } catch (e: Exception) {
             Log.e(TAG, "下载失败: ${e.message}")
@@ -234,11 +307,48 @@ object UpdateChecker {
         }
     }
 
+    /** Android 8+ 「安装未知应用」权限是否已授予（8 以下老系统没有这个开关，恒为可用） */
+    fun needsInstallPermission(ctx: Context): Boolean {
+        if (Build.VERSION.SDK_INT < 26) return false
+        return try { !ctx.packageManager.canRequestPackageInstalls() } catch (_: Throwable) { false }
+    }
+
+    /** 跳到系统「安装未知应用」授权页（部分盒子没有这个页面，退回应用详情页） */
+    fun openInstallSettings(ctx: Context) {
+        try {
+            val i = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
+                .setData(Uri.parse("package:" + ctx.packageName))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            ctx.startActivity(i)
+            return
+        } catch (_: Throwable) {}
+        try {
+            val i = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                .setData(Uri.parse("package:" + ctx.packageName))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            ctx.startActivity(i)
+        } catch (_: Throwable) {}
+    }
+
     /** 唤起系统安装器（走 FileProvider，targetSdk 26 不允许裸 file://） */
     fun install(ctx: Context, expectedSha256: String = ""): Boolean {
         return try {
             val f = File(ctx.filesDir, "update.apk")
-            if (!f.exists()) return false
+            if (!f.exists()) {
+                Log.e(TAG, "安装包不存在，先下载")
+                return false
+            }
+            if (!looksLikeApk(f)) {
+                Log.e(TAG, "安装包已损坏（不是合法 APK），删除重下")
+                f.delete()
+                return false
+            }
+            // ★ Android 8+ 没有「安装未知应用」授权时，直接 startActivity 不会弹安装器
+            if (needsInstallPermission(ctx)) {
+                Log.w(TAG, "缺少安装未知应用权限，引导授权")
+                openInstallSettings(ctx)
+                return false
+            }
             if (expectedSha256.isNotBlank() && !sha256Of(f).equals(expectedSha256.trim().lowercase(), ignoreCase = true)) {
                 Log.e(TAG, "安装前 SHA-256 校验失败，拒绝安装")
                 return false

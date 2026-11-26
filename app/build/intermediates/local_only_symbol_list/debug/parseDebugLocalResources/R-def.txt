@@ -122,9 +122,7 @@ drawable focus_card
 drawable focus_chip
 drawable focus_nav_item
 drawable focus_ring_fg
-drawable ic_nav_collect
 drawable ic_nav_follow
-drawable ic_nav_history
 drawable ic_nav_login
 drawable ic_nav_recommend
 drawable ic_nav_search
@@ -145,7 +143,6 @@ id btnAbout
 id btnAuthor
 id btnBack
 id btnClear
-id btnCollect
 id btnComment
 id btnDiag
 id btnDigg
@@ -184,9 +181,7 @@ id ivMediaTag
 id ivPause
 id ivQr
 id keyboardBox
-id navCollect
 id navFollow
-id navHistory
 id navLogin
 id navRecommend
 id navSearch

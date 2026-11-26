@@ -34,6 +34,9 @@ class PlayerActivity : Activity(), SurfaceHolder.Callback, VideoEngine.Listener,
 
     companion object {
         private const val TAG = "Player"
+
+        /** 等比缩放后有效宽/高小于该像素即视为「小到看不清」（1080p 屏约 1/9 屏宽） */
+        private const val MIN_VISIBLE_PX = 120f
         private const val REFERER = "https://www.douyin.com/"
         private const val SWIPE_MIN = 70f
         private const val SEEK_STEP = 10000L
@@ -263,24 +266,10 @@ class PlayerActivity : Activity(), SurfaceHolder.Callback, VideoEngine.Listener,
 
     /**
      * 已做过「重新获取播放地址」的视频 awemeId。
-     * 收藏 / 历史里存的是当初播放时的直链，抖音的播放地址带时效签名，
-     * 隔天再点就是 403/404（当天能播、第二天不能播，正是这个原因）。
+     * 抖音的播放地址带时效签名，同一条隔一段时间就会 403/404。
      * 播失败时按 awemeId 重拉一次详情换新地址，每条只重试一次防死循环。
      */
     private val refreshedIds = HashSet<String>()
-
-    /**
-     * 预取到的「新直链」缓存：awemeId → 已刷新过地址的视频。
-     * 收藏 / 历史的旧地址隔天会失效，但等它播失败再慢慢重拉要几秒。
-     * 所以一进入播放就静默预取当前 + 下一条，失败时直接换上，做到无感续播。
-     */
-    private val prefetched = HashMap<String, DouyinApi.VideoItem>()
-
-    /** 正在预取中的 awemeId，避免重复请求 */
-    private val prefetching = HashSet<String>()
-
-    /** 正在等预取结果的 awemeId（预取回来即自动续播） */
-    private var awaitingFreshFor: String? = null
 
     // ---- 图文作品轮播状态 ----
     /** 当前图文条目的图片列表（仅图文作品非空） */
@@ -318,17 +307,15 @@ class PlayerActivity : Activity(), SurfaceHolder.Callback, VideoEngine.Listener,
     // ★ 低配盒子流畅度：把主线程上的重复文件 IO / 线程创建全部收敛 ★
     // ================================================================
     /**
-     * 赞/藏状态的进程内缓存。
-     * 旧代码在 progressTick（每 500ms！）里直接调 Prefs.isDigged/isCollected，
-     * 而后者每次都 readText() 整个 digged.json / collected.json 再 JSON 解析 ——
-     * 在 eMMC 老盒子上等于每半秒两次磁盘读 + JSON 解析，主线程被 IO 拖死，
+     * 点赞状态的进程内缓存。
+     * 旧代码在 progressTick（每 500ms！）里直接调 Prefs.isDigged，
+     * 而后者每次都 readText() 整个 digged.json 再 JSON 解析 ——
+     * 在 eMMC 老盒子上等于每半秒一次磁盘读 + JSON 解析，主线程被 IO 拖死，
      * 表现就是「播一会儿卡住」。这里改成：进入视频时读一次，结果缓存，
-     * tick 只读内存；点赞/收藏切换时同步更新缓存。
+     * tick 只读内存；点赞切换时同步更新缓存。
      */
     private var cachedDiggedId: String = ""
     private var cachedDigged = false
-    private var cachedCollectedId: String = ""
-    private var cachedCollected = false
 
     /** 复用线程：替代散落各处的 Thread{}.start()，避免连播时线程无限累积 */
     private val bgExec = java.util.concurrent.Executors.newFixedThreadPool(3)
@@ -380,37 +367,18 @@ class PlayerActivity : Activity(), SurfaceHolder.Callback, VideoEngine.Listener,
                 }
                 lastTickPos = pos
                 // ★ 起播卡死看门狗 ★
-                //   「恢复上次播放」或收藏/历史点开时，旧直链可能被服务端"挂着不响应"：
+                //   「恢复上次播放」命中旧直链时，可能被服务端"挂着不响应"：
                 //   既不出画面也不报错，位置一直是 0 —— 用户看到的就是 App 卡死 / 像断网。
-                //   这里 8 秒还没动就开始自救：收藏/历史换新地址重播，其它视频重载一次。
+                //   这里 8 秒还没动就开始自救：重新解析地址重播。
                 if (!paused && pos < 500L && !isFinishing) {
                     if (stallSince == 0L) stallSince = SystemClock.elapsedRealtime()
                     else {
-                        val isLocalNow = feedSource == FeedBus.SOURCE_HISTORY || feedSource == FeedBus.SOURCE_COLLECT
-                        // ★ 起播提速：历史/收藏旧直链更易失效，等待从 8 秒缩到 3 秒即自救
-                        val stallTimeout = if (isLocalNow) 3000L else 8000L
-                        if (SystemClock.elapsedRealtime() - stallSince > stallTimeout &&
+                        if (SystemClock.elapsedRealtime() - stallSince > 8000L &&
                             stallRetriedForToken != playToken) {
-                        stallRetriedForToken = playToken
-                        stallSince = 0L
-                        val item = cur()
-                        val isLocal = isLocalNow
-                        var refreshed = false
-                        if (isLocal && item != null) {
-                            val pre = prefetched[item.awemeId]
-                            if (pre != null && pre.videoUrl.isNotBlank()) {
-                                adoptFreshUrl(item, pre)
-                                Log.w(TAG, "起播卡死：换用预取到的新地址")
-                            } else if (refreshedIds.add(item.awemeId)) {
-                                refreshUrlAndReplay(item)   // 内部会自己重播
-                                refreshed = true
-                                Log.w(TAG, "起播卡死：重取地址 ${item.awemeId}")
-                            }
-                        }
-                        if (!refreshed) {
+                            stallRetriedForToken = playToken
+                            stallSince = 0L
                             Log.w(TAG, "起播卡死：换引擎重播")
                             switchToNextEngineAndReplay("起播卡死")
-                        }
                         }
                     }
                 } else stallSince = 0L
@@ -431,7 +399,6 @@ class PlayerActivity : Activity(), SurfaceHolder.Callback, VideoEngine.Listener,
                     snap.playing = !paused && e.isPlaying()
                     val aid = cur()?.awemeId
                     snap.digged = aid?.let { isDiggedCached(it) } == true
-                    snap.collected = aid?.let { isCollectedCached(it) } == true
                     snap.engine = currentEngine().name
                     snap.danmaku = Prefs.getDanmaku()
                     snap.speed = playSpeed
@@ -567,7 +534,6 @@ class PlayerActivity : Activity(), SurfaceHolder.Callback, VideoEngine.Listener,
                 findViewById(R.id.btnComment) as TextView,
                 findViewById(R.id.btnSearch) as TextView,
                 findViewById(R.id.btnDigg) as TextView,
-                findViewById(R.id.btnCollect) as TextView,
                 findViewById(R.id.btnMenu) as TextView
             )
             btnViews.forEachIndexed { i, v ->
@@ -586,18 +552,10 @@ class PlayerActivity : Activity(), SurfaceHolder.Callback, VideoEngine.Listener,
             feedSource = FeedBus.source()
             // 关注流的续拉游标随列表一起带进来（否则播放页会从第 0 页重拉，全被去重掉）
             followCursor = FeedBus.cursor()
-            // 推荐流 / 关注流 / 作者页能继续加载；搜索 / 历史是固定集合，不再翻页
+            // 推荐流 / 关注流 / 作者页能继续加载；搜索结果是固定集合，不再翻页
             hasMore = feedSource == FeedBus.SOURCE_FEED ||
                 feedSource == FeedBus.SOURCE_FOLLOW ||
                 feedSource == FeedBus.SOURCE_AUTHOR
-
-            // ★ 历史/收藏起播提速：一进页面就【立即】后台预取新鲜地址，
-            //   与下面的 IJK native 库加载、引擎初始化并行进行。
-            //   旧版要等播放用旧直链失败（8 秒看门狗）后才开始刷新 → 用户感觉"很久才播"。
-            //   现在预热先行，等真正开始播时新地址多半已就绪。
-            if (feedSource == FeedBus.SOURCE_HISTORY || feedSource == FeedBus.SOURCE_COLLECT) {
-                try { prefetchNeighbors() } catch (_: Throwable) {}
-            }
 
             // IJK native 库：软解兜底引擎必需。★ 用户实测三个引擎里 IJK 最流畅 ★
             // （Mali450 那代硬解驱动不稳，软解反而更顺）
@@ -843,15 +801,6 @@ private fun cur(): DouyinApi.VideoItem? {
         return cachedDigged
     }
 
-    /** 读藏状态：同视频直接用缓存，换视频才真正读一次文件 */
-    private fun isCollectedCached(id: String): Boolean {
-        if (id != cachedCollectedId) {
-            cachedCollectedId = id
-            cachedCollected = try { Prefs.isCollected(this, id) } catch (_: Exception) { false }
-        }
-        return cachedCollected
-    }
-
     /** 作品发布日期：完整「年-月-日」格式 */
     private fun formatPublishDate(createTimeSec: Long): String {
         return try {
@@ -882,13 +831,10 @@ private fun cur(): DouyinApi.VideoItem? {
             btnViews[2].text = if (topic != null) "#$topic" else "# 无话题"
             btnViews[2].alpha = if (topic != null) 1f else 0.45f
             btnViews[3].text = "评论 ${it.commentCount}"
-            // ★ 赞 / 藏状态回显（本地记忆；已赞/已藏用品牌红）——走缓存，不读盘
+            // ★ 赞状态回显（本地记忆；已赞用品牌红）——走缓存，不读盘
             val digged = isDiggedCached(it.awemeId)
-            val collected = isCollectedCached(it.awemeId)
             btnViews[5].text = if (digged) "赞 ✓" else "赞"
             btnViews[5].setTextColor(if (digged) 0xFFFE2C55.toInt() else 0xFFFFFFFF.toInt())
-            btnViews[6].text = if (collected) "⭐ ✓" else "⭐"
-            btnViews[6].setTextColor(if (collected) 0xFFFE2C55.toInt() else 0xFFFFFFFF.toInt())
         }
     }
 
@@ -903,10 +849,7 @@ private fun cur(): DouyinApi.VideoItem? {
     /** 启动图文作品：隐藏视频画面、显示图片层、开始轮播 */
     private fun playImagePost(it: DouyinApi.VideoItem) {
         playToken++                 // 让可能还在飞的视频 prepare 回调失效
-        // 历史/收藏里的图文图片链接也可能过期：优先用后台预取到的新条目
-        val pre = prefetched[it.awemeId]
-        val item = if (pre != null && pre.imageUrls.isNotEmpty()) pre.copy(ts = it.ts) else it
-        imageSlides = item.imageUrls
+        imageSlides = it.imageUrls
         imageSlideIndex = 0
         imageSlidePaused = false
         paused = false
@@ -926,8 +869,6 @@ private fun cur(): DouyinApi.VideoItem? {
         tvPos.text = "1/${imageSlides.size}"
         tvDur.text = "图文"
         try { seekBar.progress = 1000 / maxOf(1, imageSlides.size) } catch (_: Throwable) {}
-        // 图文作品也记一条观看历史（后台线程，与视频一致的开销模型）
-        bgExec.execute { try { Prefs.addHistory(this@PlayerActivity, it) } catch (_: Throwable) {} }
         Log.d(TAG, "图文作品轮播：${it.awemeId} 共 ${imageSlides.size} 张")
     }
 
@@ -947,20 +888,6 @@ private fun cur(): DouyinApi.VideoItem? {
     private fun candidateUrls(): List<String> {
         val it = cur() ?: return emptyList()
         val list = mutableListOf<String>()
-        val isLocal = feedSource == FeedBus.SOURCE_HISTORY || feedSource == FeedBus.SOURCE_COLLECT
-
-        // ★ 历史/收藏起播提速 ★
-        //   本地旧记录存的主链是带时效签名的直链，隔天必过期；而 altUrls 里的
-        //   /aweme/v1/play/ 是长效接口地址（每次请求 302 到新鲜 CDN）。
-        //   ★ 重要：这个 play 接口地址【不能】直接喂给播放器 —— ExoPlayer 请求时
-        //     带不齐 Cookie/Referer、302 跨域后 headers 丢失，会拿到风控页 → 一直缓冲。
-        //     它只能由 DouyinApi.refreshViaPlayApi（OkHttp 带完整 headers）解析成
-        //     CDN 直链后使用。所以这里给 IJK/系统的地址由 urlForEngine().resolve302 处理，
-        //     给 Exo 的则由黑屏看门狗走 refreshViaPlayApi 自救。
-        if (isLocal) {
-            val stable = it.altUrls.firstOrNull { u -> u.contains("/aweme/v1/play/") }
-            if (stable != null && stable.isNotBlank()) list.add(stable)
-        }
         if (it.videoUrl.isNotBlank() && it.videoUrl !in list) list.add(it.videoUrl)
         it.altUrls.forEach { u -> if (u.isNotBlank() && u !in list) list.add(u) }
         return list
@@ -1003,19 +930,6 @@ private fun cur(): DouyinApi.VideoItem? {
 
         if (holderReady == null) return
 
-        // ★ 收藏 / 历史：先用后台预取到的新直链【替换当前条目】，再取播放地址。
-        //   旧代码顺序颠倒 —— 先把 rawUrl 从过期条目取出、之后才把新地址 merge 进 items，
-        //   结果这次播放仍用过期直链 → 必然失败 → 等看门狗 → 才用上新地址（"很久才播"）。
-        //   现在 merge 提前到取 URL 之前，预取一旦就绪当次就能直接用上新地址。
-        val pre = prefetched[it.awemeId]
-        if (pre != null && pre.videoUrl.isNotBlank() && pre.videoUrl != it.videoUrl) {
-            val merged = pre.copy(ts = it.ts)
-            val l = items.toMutableList()
-            if (currentIndex in l.indices) l[currentIndex] = merged
-            items = l
-            it = merged
-        }
-
         // ★ 按「线路序号」取地址：出错时先换线路，而不是盲目换引擎
         //   （URL 失效时换引擎毫无意义 —— 三个引擎拿同一条死链都放不出来）
         val urls = candidateUrls()
@@ -1031,8 +945,6 @@ private fun cur(): DouyinApi.VideoItem? {
         val token = playToken
         // ★ 新视频从「干净几何」开始：上一条视频的容器比例 / 图层缩放绝不带到新视频
         try { resetVideoGeometry() } catch (_: Throwable) {}
-        // ★ 进入这条就开始预取「这条 + 下一条」的可用地址（收藏 / 历史专用，静默进行）
-        prefetchNeighbors()
         lastTickPos = 0L   // 新视频的进度基线清零，避免沿用上一条的位置判「已恢复」
         bufferingSince = 0L
         stallSince = 0L
@@ -1127,33 +1039,8 @@ private fun cur(): DouyinApi.VideoItem? {
         playCurrent()
     }
 
-    /**
-     * 手动「换线路」统一入口（菜单 / 手机遥控共用）。
-     * ★ 历史 / 收藏修复 ★
-     *   旧代码只是 urlAttempt++ 在 candidateUrls() 里循环 —— 而本地记录的主链+备用链
-     *   全来自当初存下的同一条已过期直链，换一圈还是死链 → 用户「多次换线路都失败」。
-     *   现在：本地源先尝试换上新解析的地址（预取就绪 / 现场重取），从主线路重播；
-     *   只有确实没有新地址时才退回循环旧线路。网络源维持原逻辑不变。
-     */
+    /** 手动「换线路」统一入口（菜单 / 手机遥控共用）：在候选线路里循环。 */
     private fun switchLineManually() {
-        val it = cur()
-        val isLocal = feedSource == FeedBus.SOURCE_HISTORY || feedSource == FeedBus.SOURCE_COLLECT
-        if (isLocal && it != null && it.awemeId.isNotBlank()) {
-            val pre = prefetched[it.awemeId]
-            if (pre != null && pre.videoUrl.isNotBlank()) {
-                adoptFreshUrl(it, pre)
-                urlAttempt = 0
-                retrySameEngine = 0
-                flash("已换到新地址，重新加载…")
-                playCurrent()
-                return
-            }
-            // 允许再刷新一次（onError 可能已把 id 加进 refreshedIds）
-            refreshedIds.remove(it.awemeId)
-            refreshUrlAndReplay(it)
-            flash("正在重新获取播放地址…")
-            return
-        }
         val n = candidateUrls().size
         if (n <= 1) flash("这条只有一条线路")
         else {
@@ -1256,8 +1143,7 @@ private fun cur(): DouyinApi.VideoItem? {
             3 -> openComments(cur())
             4 -> openSearch()
             5 -> doDigg()      // ★ 点赞直达
-            6 -> doCollect()   // ★ 收藏直达
-            7 -> showMenu()    // 触屏菜单入口
+            6 -> showMenu()    // 触屏菜单入口
         }
     }
 
@@ -1312,14 +1198,12 @@ private fun cur(): DouyinApi.VideoItem? {
         val engineName = engines.getOrNull(engineIndex)?.name ?: "无"
         val n = candidateUrls().size
         val landscapeOn = Prefs.isLandscapeOnly(this)
-        // ★ 点赞/收藏状态回显（本地记忆）——走缓存，不读盘
+        // ★ 点赞状态回显（本地记忆）——走缓存，不读盘
         val digged = it?.awemeId?.let { isDiggedCached(it) } == true
-        val collected = it?.awemeId?.let { isCollectedCached(it) } == true
         val labels = arrayOf(
             "作者主页 · @${it?.author ?: "?"}",
             "查看评论 · ${it?.commentCount ?: 0} 条",
             if (digged) "👍 已赞 · 取消点赞" else "👍 点赞",
-            if (collected) "⭐ 已收藏 · 取消收藏" else "⭐ 收藏",
             "换线路 · 当前 ${urlAttempt + 1}/${maxOf(1, n)}",
             "切换引擎 · 当前 $engineName",
             "播放模式 · $loopMode",
@@ -1338,12 +1222,8 @@ private fun cur(): DouyinApi.VideoItem? {
                         0 -> openAuthor(it)
                         1 -> openComments(it)
                         2 -> doDigg()
-                        3 -> doCollect()
+                        3 -> switchLineManually()
                         4 -> {
-                            // 手动换线路：历史/收藏会先换新地址（见 switchLineManually）
-                            switchLineManually()
-                        }
-                        5 -> {
                             // 手动换引擎：必须 release 掉旧实例，
                             // 否则它会继续持有 Surface（画面残留/黑块）
                             try { engines[engineIndex].release() } catch (_: Exception) {}
@@ -1354,12 +1234,12 @@ private fun cur(): DouyinApi.VideoItem? {
                             flash("引擎：${engines[engineIndex].name}（已记住）")
                             playCurrent()
                         }
-                        6 -> {
+                        5 -> {
                             val v = !Prefs.isLoopOne(this)
                             Prefs.setLoopOne(this, v)
                             flash(if (v) "播放模式：单集循环" else "播放模式：自动连播")
                         }
-                        7 -> {
+                        6 -> {
                             // ★ 竖屏过滤开关（用户要求的信息流过滤）
                             //   只影响【之后拉取】的视频：已经在列表里的不追溯移除，
                             //   否则用户按一下开关当前视频就消失了，体验很怪。
@@ -1367,13 +1247,13 @@ private fun cur(): DouyinApi.VideoItem? {
                             Prefs.setLandscapeOnly(this, v)
                             flash(if (v) "只显示横屏视频（下次加载生效）" else "显示全部视频（下次加载生效）")
                         }
-                        8 -> toggleDanmaku()
-                        9 -> showErrorHistory()
-                        10 -> {
+                        7 -> toggleDanmaku()
+                        8 -> showErrorHistory()
+                        9 -> {
                             startActivity(Intent(this, SettingsActivity::class.java))
                             finish()
                         }
-                        11 -> showQualityDialog()
+                        10 -> showQualityDialog()
                     }
                     showControls()
                 }
@@ -1495,7 +1375,6 @@ private fun cur(): DouyinApi.VideoItem? {
                     "next" -> nextVideo()
                     "prev" -> prevVideo()
                     "digg" -> doDigg()
-                    "collect" -> doCollect()
                     "toggle" -> togglePlayPause()
                     "pause" -> { if (currentEngine().isPlaying()) { currentEngine().pause(); paused = true; showControls() } }
                     "play" -> { if (!currentEngine().isPlaying()) { currentEngine().start(); paused = false; showControls() } }
@@ -1579,7 +1458,7 @@ private fun cur(): DouyinApi.VideoItem? {
     /**
      * 点赞 / 取消点赞 —— ★ 纯本地 ★
      * 服务器侧 WebProtect 方案太麻烦且易触发风控（实测会踢下线网页端），
-     * 用户拍板改成本地记忆：状态只存本机，用于回显与收藏页，不发任何请求。
+     * 用户拍板改成本地记忆：状态只存本机，仅用于按钮回显，不发任何请求。
      */
     private fun doDigg() {
         val v = cur() ?: return
@@ -1587,18 +1466,6 @@ private fun cur(): DouyinApi.VideoItem? {
         val now = try { Prefs.toggleDigg(this, it.awemeId) } catch (_: Exception) { false }
         cachedDiggedId = it.awemeId; cachedDigged = now   // 同步缓存，免得 updateInfo 再读盘
         flash(if (now) "已点赞 ✓（本地）" else "已取消点赞（本地）")
-        try { updateInfo() } catch (_: Throwable) {}
-    }
-
-    /**
-     * 收藏 / 取消收藏 —— ★ 纯本地 ★（同上：不做服务器写操作，只记本机状态）
-     */
-    private fun doCollect() {
-        val v = cur() ?: return
-        val it = v
-        val now = try { Prefs.toggleCollect(this, it) } catch (_: Exception) { false }
-        cachedCollectedId = it.awemeId; cachedCollected = now   // 同步缓存
-        flash(if (now) "已收藏 ✓（本地）" else "已取消收藏（本地）")
         try { updateInfo() } catch (_: Throwable) {}
     }
 
@@ -1675,14 +1542,6 @@ private fun cur(): DouyinApi.VideoItem? {
         //   native 崩（IJK 释放竞态）→ 进程瞬死 → onDestroy 不执行 → 残留；
         //   冷启动 MainActivity 读到残留 → 直接回到本视频继续播。
         saveResumeState()
-        // ★ 观看历史：每次起播成功记录一条（纯本地，去重上限 100）
-        //   ★ 挪到后台线程：addHistory 是「读整个 history.json → 去重 → 写回」，
-        //     100 条约 60KB，在 eMMC 老盒子的主线程上就是一次可感知的掉帧；
-        //     观看历史不是恢复链路的一部分，晚几十毫秒落盘没有任何影响。
-        val histItem = cur()
-        if (histItem != null) Thread {
-            try { Prefs.addHistory(this@PlayerActivity, histItem) } catch (_: Throwable) {}
-        }.start()
         handler.removeCallbacks(progressTick)
         handler.post(progressTick)
         Prefs.trace(this, "PLAYING idx=${currentIndex + 1}/${items.size} engine=${currentEngine().name}")
@@ -1780,37 +1639,6 @@ private fun cur(): DouyinApi.VideoItem? {
             progressBar.visibility = View.GONE
             noteError(msg)
 
-            // ★ 本地集合（收藏 / 历史）的直链会过期：全程静默换新地址，不给用户任何"过期"提示 ★
-            val it = cur()
-            if (it != null &&
-                (feedSource == FeedBus.SOURCE_HISTORY || feedSource == FeedBus.SOURCE_COLLECT)
-            ) {
-                try { clearBufferNotice() } catch (_: Throwable) {}
-                // ① 预取已就绪 → 立刻换上重播（通常几百毫秒内起播）
-                val pre = prefetched[it.awemeId]
-                if (pre != null && pre.videoUrl.isNotBlank() && pre.videoUrl != it.videoUrl) {
-                    adoptFreshUrl(it, pre)
-                    playCurrent()
-                    return@post
-                }
-                // ② 预取还在路上 → 等它，就绪后自动续播
-                prefetchNeighbors()
-                if (it.awemeId in prefetching) {
-                    awaitingFreshFor = it.awemeId
-                    return@post
-                }
-                // ③ 预取失败/未开始 → 现场重取一次（同样不提示"过期"）
-                if (refreshedIds.add(it.awemeId)) {
-                    refreshUrlAndReplay(it)
-                    return@post
-                }
-                tvStatus.text = "加载失败：${shortMsg(msg)}　→ 菜单可换线路 / 换引擎"
-                paused = true
-                showControls()
-                syncDanmakuPause()
-                return@post
-            }
-
             // ★ 不自动做任何动作 ★
             //   用户明确要求：换引擎、换线路都手动决定。
             //   之前自动换引擎会在三个引擎间来回刷屏；自动换线路也会在
@@ -1823,95 +1651,19 @@ private fun cur(): DouyinApi.VideoItem? {
         }
     }
 
-    /**
-     * 收藏 / 历史：后台静默预取「当前 + 下一条」的可用播放地址。
-     * 一进入播放就开始跑，等旧地址真的失效时新地址多半已就绪 → 无感换链、立即续播。
-     */
-    private fun prefetchNeighbors() {
-        if (feedSource != FeedBus.SOURCE_HISTORY && feedSource != FeedBus.SOURCE_COLLECT) return
-        val cookie = Prefs.getCookie(this)
-        if (cookie.isBlank()) return
-        val targets = ArrayList<DouyinApi.VideoItem>()
-        for (i in intArrayOf(currentIndex, currentIndex + 1)) {
-            if (i !in items.indices) continue
-            val v = items[i]
-            if (v.awemeId.isBlank()) continue
-            if (v.awemeId in prefetched) continue
-            if (v.awemeId in prefetching) continue
-            prefetching.add(v.awemeId)
-            targets.add(v)
-        }
-        if (targets.isEmpty()) return
-        // ★ 按作者分组，一位作者只开一个线程 ★
-        //   同一位作者的旧视频共用「作者作品列表」缓存：第一条把列表翻下来，
-        //   后面的几条直接命中，整体从十几秒降到 1~3 秒。
-        val groups = LinkedHashMap<String, MutableList<DouyinApi.VideoItem>>()
-        for (v in targets) {
-            val key = if (v.secUid.isBlank()) "?" + v.awemeId else v.secUid
-            groups.getOrPut(key) { ArrayList() }.add(v)
-        }
-        for ((_, group) in groups) {
-            // ★ 用复用线程池，替代每位作者 new Thread —— 连播历史/收藏时不再无限累积线程
-            bgExec.execute {
-                val results = HashMap<String, DouyinApi.VideoItem?>()
-                for (v in group) {
-                    results[v.awemeId] = try {
-                        DouyinApi.refreshVideoUrl(cookie, v)
-                    } catch (e: Exception) {
-                        Log.w(TAG, "预取地址失败 ${v.awemeId}: ${e.message}"); null
-                    }
-                }
-                handler.post {
-                    if (isFinishing) return@post
-                    for (v in group) {
-                        val fresh = results[v.awemeId]
-                        prefetching.remove(v.awemeId)
-                        val playing = cur()?.awemeId == v.awemeId && awaitingFreshFor == v.awemeId
-                        val usable = fresh != null &&
-                            (fresh.videoUrl.isNotBlank() || fresh.imageUrls.isNotEmpty())
-                        if (usable && fresh != null) {
-                            prefetched[v.awemeId] = fresh.copy(ts = v.ts)
-                            Log.d(TAG, "预取地址就绪 ${v.awemeId}")
-                            if (playing) {
-                                awaitingFreshFor = null
-                                adoptFreshUrl(v, fresh)
-                                urlAttempt = 0
-                                retrySameEngine = 0
-                                playCurrent()
-                            }
-                        } else if (playing) {
-                            awaitingFreshFor = null
-                            if (refreshedIds.add(v.awemeId)) refreshUrlAndReplay(v)
-                            else {
-                                tvStatus.text = "加载失败：${DouyinApi.lastError}　→ 按 OK 重试 / 菜单换线路"
-                                paused = true
-                                showControls()
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /** 把刷新到的新地址写进当前条目 + 本地记录（保留原时间戳，历史分组依赖它） */
+    /** 把刷新到的新地址写进当前条目（保留原时间戳） */
     private fun adoptFreshUrl(old: DouyinApi.VideoItem, fresh: DouyinApi.VideoItem) {
         val merged = fresh.copy(ts = old.ts)
         val list = items.toMutableList()
         if (currentIndex in list.indices) list[currentIndex] = merged
         items = list
-        prefetched[old.awemeId] = merged
-        try {
-            if (feedSource == FeedBus.SOURCE_HISTORY) Prefs.updateHistoryUrl(this, merged)
-            else if (feedSource == FeedBus.SOURCE_COLLECT) Prefs.updateCollectUrl(this, merged)
-        } catch (_: Throwable) {}
     }
 
-    /** 直链过期：按 awemeId 重新解析真实播放地址，替换后重播（收藏 / 历史专用） */
+    /** 直链过期：按 awemeId 重新解析真实播放地址，替换后重播（https 直链 403/过期时用） */
     private fun refreshUrlAndReplay(old: DouyinApi.VideoItem) {
         val cookie = Prefs.getCookie(this)
         Thread {
-            val fresh = prefetched[old.awemeId] ?: try {
+            val fresh = try {
                 DouyinApi.refreshVideoUrl(cookie, old)
             } catch (e: Exception) {
                 Log.e(TAG, "刷新地址异常: ${e.message}"); null
@@ -2067,6 +1819,14 @@ private fun cur(): DouyinApi.VideoItem? {
         val sh = surface.height
         if (sw <= 0 || sh <= 0) return
         try {
+            // 极端比例（1:20 长图之类）本就放弃等比缩放 → 直接跳过，
+            // 否则每秒「自愈」一次 = 每秒重置一次缩放 + 刷一条日志
+            if (eng.stretchesToFillSurface()) {
+                val vr = sw.toFloat() / sh.toFloat()
+                val tx = if (ratio < vr) ratio / vr else 1f
+                val ty = if (ratio > vr) vr / ratio else 1f
+                if (isUnusableScale(sw, sh, tx, ty)) return
+            }
             if (eng is ExoEngine) {
                 // 容器比例不对，或容器比例对但 Surface 实际尺寸没跟上（布局残留）
                 val frameRatio = aspectFrame.aspectRatio
@@ -2114,6 +1874,17 @@ private fun cur(): DouyinApi.VideoItem? {
     }
 
     /**
+     * 等比缩放后是否「小到看不清」。
+     *
+     * 只有 1:20 长图这类比例才会触发：等比后宽度只剩几十像素，等于全黑。
+     * 9:16 竖屏在 16:9 屏上等比后仍有 607×1080，绝不应当放弃等比。
+     */
+    private fun isUnusableScale(viewW: Int, viewH: Int, sx: Float, sy: Float): Boolean {
+        if (viewW <= 0 || viewH <= 0) return false
+        return viewW * sx < MIN_VISIBLE_PX || viewH * sy < MIN_VISIBLE_PX
+    }
+
+    /**
      * 非 Exo 引擎的「比例矫正」——只缩放图层，不动 Surface 尺寸。
      *
      * 背景：IJK 把解码画面硬拉到 Surface 的尺寸（1080×1920 的竖屏在 1920×1080 的
@@ -2138,11 +1909,14 @@ private fun cur(): DouyinApi.VideoItem? {
                 } else if (videoRatio > viewRatio) {
                     sy = viewRatio / videoRatio
                 }
-                // ★「有声音无画面」加固 ★
-                //   某些图表/长图类作品报出的宽高比极端（如 1:20），会让 sx 或 sy
-                //   缩到 0.05 以下 —— 画面被压成一条线，肉眼几乎全黑（音轨照常）。
-                //   缩放系数过小就放弃图层缩放、让画面铺满（宁可轻微拉伸也要看得见）。
-                if (sx < 0.5f || sy < 0.5f) {
+                // ★「有声音无画面」加固（v2 修正）★
+                //   宽高比极端（如 1:20 长图）等比缩放后只剩一条几十像素的细线，
+                //   肉眼几乎全黑（音轨照常）—— 只有这种情况才放弃等比。
+                //   ★ 旧实现用「缩放系数 < 0.5」当判据是错的 ★
+                //     9:16 竖屏在 16:9 屏上 sx = 0.5625/1.7778 = 0.316，必然触发，
+                //     → 竖屏视频全被拉满全屏（横向拉宽 3.16 倍）。
+                //     这就是「IJK / 系统播放器下竖屏视频变形」的真正原因。
+                if (isUnusableScale(vw, vh, sx, sy)) {
                     surface.scaleX = 1f
                     surface.scaleY = 1f
                     if (::barMask.isInitialized) barMask.clear()
@@ -2261,16 +2035,6 @@ private fun cur(): DouyinApi.VideoItem? {
         } else {
             // ★ 上一次是「加载失败」→ 这次按 OK 当作重试：重新取地址再播 ★
             val status = tvStatus.text?.toString() ?: ""
-            val failed = status.contains("加载失败") || status.contains("播放失败")
-            if (failed && (feedSource == FeedBus.SOURCE_HISTORY || feedSource == FeedBus.SOURCE_COLLECT)) {
-                val it = cur()
-                if (it != null) {
-                    refreshedIds.remove(it.awemeId)
-                    tvStatus.text = ""
-                    refreshUrlAndReplay(it)
-                    return
-                }
-            }
             e.start()
             paused = false                // ★ 播放 → 控制栏到点自动隐藏
             ivPause.text = "▶"
