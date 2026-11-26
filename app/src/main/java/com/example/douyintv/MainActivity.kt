@@ -306,7 +306,7 @@ class MainActivity : Activity() {
                         o.getString("id"), o.getString("d"), o.getString("a"),
                         o.getString("u"), o.getString("c"), o.getInt("dur"),
                         o.getString("sec"), o.getInt("digg"), o.getInt("cmt"),
-                        t, al, o.optBoolean("pt", false), 0L, imgs
+                        t, al, o.optBoolean("pt", false), 0L, imgs, o.optLong("ct", 0L)
                     )
                 )
             }

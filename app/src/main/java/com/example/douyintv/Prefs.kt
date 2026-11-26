@@ -562,7 +562,7 @@ object Prefs {
                     o.optString("u", ""), o.optString("c", ""), o.optInt("dur", 0),
                     o.optString("sec", ""), o.optInt("digg", 0), o.optInt("cmt", 0),
                     emptyList(), alts, o.optBoolean("pt", false),
-                    o.optLong("ts", 0L), imgs
+                    o.optLong("ts", 0L), imgs, o.optLong("ct", 0L)
                 )
             )
         }
@@ -596,6 +596,8 @@ object Prefs {
             item.imageUrls.forEach { ja.put(it) }
             o.put("imgs", ja)
         }
+        // ★ 作品发布日期，供播放页在「赞 / 评论」后展示
+        if (item.createTime > 0L) o.put("ct", item.createTime)
         o.put("ts", System.currentTimeMillis())
         return o
     }

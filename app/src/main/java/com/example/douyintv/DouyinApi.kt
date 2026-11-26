@@ -67,7 +67,8 @@ object DouyinApi {
         val altUrls: List<String> = emptyList(), // 备用播放地址（主链失效时依次重试）
         val isPortrait: Boolean = false,          // 竖屏视频 —— 卡片角标用（解析层按宽高判定）
         val ts: Long = 0,                          // 观看时间戳（本地历史用，接口解析恒为 0）
-        val imageUrls: List<String> = emptyList()  // ★ 图文/图集作品（无 play_addr，播放器走图片轮播）
+        val imageUrls: List<String> = emptyList(), // ★ 图文/图集作品（无 play_addr，播放器走图片轮播）
+        val createTime: Long = 0                   // ★ 作品发布日期（Unix 秒，来自 create_time）
     ) {
         /** 是否图文作品：没有视频地址但有图片列表 */
         val isImagePost: Boolean get() = videoUrl.isBlank() && imageUrls.isNotEmpty()
@@ -1381,7 +1382,7 @@ object DouyinApi {
                 return VideoItem(
                     awemeId, desc, author, "", imgUrls[0], 0, secUid, digg, cmtCount,
                     topics, emptyList(), isPortrait = vh > vw,
-                    imageUrls = imgUrls
+                    imageUrls = imgUrls, createTime = obj.optLong("create_time", 0L)
                 )
             }
             return null
@@ -1439,7 +1440,7 @@ object DouyinApi {
 
         return VideoItem(awemeId, desc, author, videoUrl, cover, duration,
                          secUid, digg, cmtCount, topics, altUrls,
-                         isPortrait = vh > vw)
+                         isPortrait = vh > vw, createTime = obj.optLong("create_time", 0L))
     }
 
     // ============================================================
@@ -1651,11 +1652,19 @@ object DouyinApi {
      * 接口是否被风控、也不需要翻作者作品列表（那要 5 次网络、十几秒）。
      * 返回的 VideoItem 里视频地址就是 302 后的最终地址。
      */
+    /**
+     * ★ 历史/收藏「最新连接」直取入口 ★
+     * 长效播放接口每次请求都会 302 到当前有效的 CDN 直链（签名新鲜），
+     * 一次轻量 GET 即可拿到最新地址，不必先拿过期直链卡满看门狗。
+     */
+    fun stablePlayUrl(awemeId: String): String =
+        "https://www.douyin.com/aweme/v1/play/" +
+            "?device_platform=webapp&aid=6383&aweme_id=$awemeId&" + COMMON_TAIL
+
     fun refreshViaPlayApi(cookie: String, item: VideoItem): VideoItem? {
         if (item.awemeId.isBlank()) return null
         return try {
-            val url = "https://www.douyin.com/aweme/v1/play/" +
-                "?device_platform=webapp&aid=6383&aweme_id=${item.awemeId}&" + COMMON_TAIL
+            val url = stablePlayUrl(item.awemeId)
             val req = Request.Builder().url(url)
                 .header("User-Agent", UA)
                 .header("Referer", REFERER)

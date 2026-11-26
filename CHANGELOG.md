@@ -4,6 +4,28 @@
 > 每版留档：源码备份在 _BACKUP_Dtv_v<版本>，APK 留档在 artifacts/apk/TVDouyinNative/。
 > 版本号规则：十进制小进位（1.99 → 2.00 → 2.01）；versionCode 单调递增（Android 升级判断）。
 
+## 2.31-fix5（本地修复版，未升 versionCode）五项修复
+
+**① 历史/收藏起播慢 —— 直接取「最新连接」**
+- 根因：起播先拿当初存的过期签名直链，卡满看门狗/等预取才换新地址。
+- 修复：`DouyinApi.stablePlayUrl(awemeId)` 现场构造长效播放接口地址（每次请求 302 到当前有效 CDN，签名永远新鲜）；`candidateUrls()` 把该地址置顶，历史/收藏首播直接用最新连接，无需等待。
+
+**② TRIN 等图表作品有声音无画面 —— 换线路而非只换引擎**
+- 根因（第 3 版才找到）：默认播的是 bit_rate 选档地址（解不出画面），官方抖音用 `/aweme/v1/play/` 主链（必播）。旧版无首帧只换引擎，三个引擎拿到**同一条坏地址**→ 都没画面，所以「换播放器没用」。
+- 修复：`candidateUrls()` 对所有来源置顶长效主链地址；黑屏看门狗改为先遍历所有线路（含官方地址）、全试完才换引擎；重试上限 = 线路数 × 引擎数。
+
+**③ 赞/评论后增加作品发布日期**
+- `VideoItem` 加 `createTime`（解析 `create_time`）；历史/收藏/恢复点均持久化 `ct`；播放页信息栏在赞/评论后显示「发布于 MM-dd」（跨年补年份）。
+
+**④ APP 更新改到用户的 GitHub Releases**
+- 更新源由 `Alone2235/DTV` 的 version.json 改为 `https://github.com/zxsjc/douyintv/releases`（Releases API 读最新 tag/APK/说明，SHA-256 从 digest 取）；保留自定义 version.json 兼容；版本比较改为语义化「2.31 > 2.9」，避免误报。
+
+**⑤ 视频有时变形**
+- 两处根因：`applySurfaceScale` 对极端比例「放弃缩放让画面铺满」= 拉伸变形；Exo 引擎「容器约束 + SCALE_TO_FIT」双重缩放冲突。
+- 修复：始终等比缩放（留黑边不拉伸）；Exo 统一为容器铺满 + 引擎单层等比；比例自愈逻辑同步修正。
+
+> 验证：本环境无 Android SDK / kotlinc，无法本地编译；5 个改动 Kotlin 文件括号平衡（词法级）、符号引用、构造参数数量均已静态校验通过。请用 Android Studio 执行 `:app:assembleDebug` 真机验证。
+
 ## 2.31-fix4（本地修复版，未升 versionCode）编译错误修复
 
 - `DouyinApi.kt` 的 `refreshViaPlayApi()` 引用了 `REFERER`，但本文件（object DouyinApi）未定义该常量；同包其它文件里的 `REFERER` 均为 `private`（file-private / 成员私有），跨文件不可见，导致 `:app:compileDebugKotlin` 报 `Cannot access 'val REFERER: String': it is private in file`。

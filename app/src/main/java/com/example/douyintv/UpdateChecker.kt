@@ -31,10 +31,13 @@ object UpdateChecker {
 
     private const val TAG = "Update"
 
-    /** 版本清单地址（GitHub 仓库 Alone2235/DTV，raw 直读；国内可用 jsDelivr 镜像） */
-    const val DEFAULT_MANIFEST = "https://raw.githubusercontent.com/Alone2235/DTV/main/version.json"
-    /** jsDelivr 镜像（raw 被墙时备用，Prefs 可切换） */
-    const val CDN_MANIFEST = "https://cdn.jsdelivr.net/gh/Alone2235/DTV@main/version.json"
+    /** ★ 用户的发布渠道：https://github.com/zxsjc/douyintv/releases ★ */
+    const val RELEASES_PAGE = "https://github.com/zxsjc/douyintv/releases"
+    /** GitHub Releases API：取最新 release（tag=版本号 / assets=APK / body=更新说明） */
+    const val RELEASES_API = "https://api.github.com/repos/zxsjc/douyintv/releases/latest"
+    /** 兼容旧常量名（设置里若存过自定义清单地址仍走 version.json 通道） */
+    const val DEFAULT_MANIFEST = "https://raw.githubusercontent.com/zxsjc/douyintv/main/version.json"
+    const val CDN_MANIFEST = "https://cdn.jsdelivr.net/gh/zxsjc/douyintv@main/version.json"
 
     data class Info(
         val versionCode: Int,
@@ -47,8 +50,64 @@ object UpdateChecker {
 
     /** 拉取版本清单；失败返回 null（静默失败，不打扰用户） */
     fun fetchManifest(ctx: Context): Info? {
-        val url = Prefs.getUpdateUrl().ifBlank { DEFAULT_MANIFEST }
-        if (url.contains("CHANGE_ME")) return null      // 还没配置仓库 → 视为没有更新渠道
+        // ★ 默认走用户的 GitHub Releases（zxsjc/douyintv）。
+        //   仅当用户在设置里显式配置了自定义 version.json 地址时，才走旧清单通道。
+        val custom = Prefs.getUpdateUrl()
+        if (custom.isNotBlank() && !custom.contains("CHANGE_ME")) {
+            return fetchFromManifest(custom)
+        }
+        return fetchFromReleases()
+    }
+
+    /** 默认通道：GitHub Releases API 读最新 release，无需仓库里的 version.json */
+    private fun fetchFromReleases(): Info? {
+        return try {
+            val conn = (URL(RELEASES_API).openConnection() as HttpURLConnection).apply {
+                connectTimeout = 10000
+                readTimeout = 10000
+                setRequestProperty("User-Agent", "DTV-Updater")
+                setRequestProperty("Accept", "application/vnd.github+json")
+            }
+            val text = conn.inputStream.bufferedReader().use { it.readText() }
+            conn.disconnect()
+            val o = JSONObject(text)
+            // tag 形如 "2.31" / "v2.31" → versionName="2.31"，versionCode=231
+            val tag = o.optString("tag_name", "")
+            val vName = tag.removePrefix("v").removePrefix("V").ifBlank {
+                o.optString("name", "").removePrefix("v")
+            }
+            if (vName.isBlank()) return null
+            val vCode = versionNameToCode(vName)
+            // 从 assets 里挑第一个 .apk
+            var apkUrl = ""
+            var sha256 = ""
+            val assets = o.optJSONArray("assets")
+            if (assets != null) {
+                for (i in 0 until assets.length()) {
+                    val a = assets.optJSONObject(i) ?: continue
+                    val name = a.optString("name", "")
+                    if (!name.endsWith(".apk", ignoreCase = true)) continue
+                    apkUrl = a.optString("browser_download_url", "")
+                    // GitHub 返回形如 "sha256:xxxx"
+                    sha256 = a.optString("digest", "")
+                        .removePrefix("sha256:").removePrefix("SHA256:")
+                    break
+                }
+            }
+            if (apkUrl.isBlank()) {
+                Log.w(TAG, "最新 release 未附带 APK，跳过更新")
+                return null
+            }
+            val notes = o.optString("body", "")
+            Info(vCode, vName, apkUrl, notes, sha256, false)
+        } catch (e: Exception) {
+            Log.w(TAG, "Releases 获取失败: ${e.message}")
+            null
+        }
+    }
+
+    /** 旧清单通道：用户自定义 version.json（保留兼容） */
+    private fun fetchFromManifest(url: String): Info? {
         return try {
             val conn = (URL(url).openConnection() as HttpURLConnection).apply {
                 connectTimeout = 8000
@@ -72,11 +131,41 @@ object UpdateChecker {
         }
     }
 
+    /** "2.31" → 231；"2.9" → 209；保证十进制小进位单调递增 */
+    private fun versionNameToCode(name: String): Int {
+        val parts = name.split(".").mapNotNull { it.toIntOrNull() }
+        var code = 0
+        for (p in parts.take(3)) code = code * 100 + p
+        return code
+    }
+
     /** 与当前安装版本比对；有新版返回 Info，否则 null */
     fun check(ctx: Context): Info? {
         val info = fetchManifest(ctx) ?: return null
-        val cur = try { BuildConfig.VERSION_CODE } catch (_: Throwable) { 0 }
-        return if (info.versionCode > cur && info.apkUrl.isNotBlank()) info else null
+        if (info.apkUrl.isBlank()) return null
+        // 优先按 versionName 逐段比较（Releases 的 tag 与显示版本一致，最可靠）；
+        // versionName 为空时退回 versionCode 比较（兼容旧清单）。
+        val curName = try { BuildConfig.VERSION_NAME } catch (_: Throwable) { "" }
+        val newer = if (info.versionName.isNotBlank() && curName.isNotBlank()) {
+            compareVersion(info.versionName, curName) > 0
+        } else {
+            val cur = try { BuildConfig.VERSION_CODE } catch (_: Throwable) { 0 }
+            info.versionCode > cur
+        }
+        return if (newer) info else null
+    }
+
+    /** 语义化版本比较："2.31" > "2.9" > "2.8"。返回 1/0/-1 */
+    private fun compareVersion(a: String, b: String): Int {
+        val pa = a.removePrefix("v").split(".").mapNotNull { it.toIntOrNull() }
+        val pb = b.removePrefix("v").split(".").mapNotNull { it.toIntOrNull() }
+        val n = maxOf(pa.size, pb.size)
+        for (i in 0 until n) {
+            val x = pa.getOrElse(i) { 0 }
+            val y = pb.getOrElse(i) { 0 }
+            if (x != y) return if (x > y) 1 else -1
+        }
+        return 0
     }
 
     /**
