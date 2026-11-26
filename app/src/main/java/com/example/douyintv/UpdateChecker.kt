@@ -222,6 +222,12 @@ object UpdateChecker {
         } catch (_: Throwable) { false }
     }
 
+    /** 已下好且通过粗校验的 APK（不存在 / 损坏返回 null）——用于「已下载，直接安装」入口 */
+    fun downloadedApk(ctx: Context): File? {
+        val f = File(ctx.filesDir, "update.apk")
+        return if (looksLikeApk(f)) f else null
+    }
+
     fun download(ctx: Context, apkUrl: String, expectedSha256: String = "", onProgress: (Int) -> Unit = {}): File? {
         val target = File(ctx.filesDir, "update.apk")
         val list = mirrors(apkUrl)

@@ -225,6 +225,14 @@ object Prefs {
     fun getUpdateUrl(): String = App.appContext()?.let { ctx(it).getString("update_url", "") ?: "" } ?: ""
     fun setUpdateUrl(context: Context, v: String) = ctx(context).edit().putString("update_url", v).apply()
 
+    /**
+     * 已下载完成、等用户点安装的版本号（空 = 没有待安装包）。
+     * 下载改后台进行后，完成时用户可能正在看视频，不能直接拉安装器打断，
+     * 就把「下好了」记在这里，下次进首页 / 点检查更新时给一键安装入口。
+     */
+    fun getUpdateReady(context: Context): String = ctx(context).getString("update_ready", "") ?: ""
+    fun setUpdateReady(context: Context, v: String) = ctx(context).edit().putString("update_ready", v).apply()
+
     /** 用户点了「稍后」的版本号：同一个版本不再每次启动都弹窗 */
     fun getSkipVersion(context: Context): String = ctx(context).getString("skip_version", "") ?: ""
     fun setSkipVersion(context: Context, v: String) = ctx(context).edit().putString("skip_version", v).apply()

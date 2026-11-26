@@ -207,6 +207,15 @@ class MainActivity : Activity() {
      */
     private fun checkUpdate() {
         Thread {
+            // ★ 先看本地有没有「已下好待安装」的包：有就直接给安装入口，不用联网、不用重下 7MB
+            val ready = Prefs.getUpdateReady(this)
+            if (ready.isNotBlank() && ready != BuildConfig.VERSION_NAME &&
+                UpdateChecker.downloadedApk(this) != null) {
+                // 有下好的包：不用联网、不用重下，直接给安装入口
+                handler.post { if (!isFinishing) maybeOfferInstall() }
+                return@Thread
+            }
+
             val info = try { UpdateChecker.check(this) } catch (_: Throwable) { null } ?: return@Thread
             // 「稍后」过的版本不再每次启动都弹（点「立即升级」时清掉记录）
             if (info.versionName == Prefs.getSkipVersion(this)) return@Thread
@@ -217,7 +226,8 @@ class MainActivity : Activity() {
                         .setTitle("发现新版本 ${info.versionName}")
                         .setMessage(
                             "当前版本 ${BuildConfig.VERSION_NAME} → 新版本 ${info.versionName}\n\n" +
-                            info.notes.ifBlank { "（无更新说明）" } + "\n\n点「立即升级」自动下载并调起安装。"
+                            info.notes.ifBlank { "（无更新说明）" } +
+                            "\n\n点「立即升级」→ 后台下载（下载期间可照常看视频、正常操作），下好后再点安装。"
                         )
                         .setPositiveButton("立即升级") { _, _ ->
                             Prefs.setSkipVersion(this, "")
@@ -231,40 +241,138 @@ class MainActivity : Activity() {
         }.start()
     }
 
+    /**
+     * 下载并安装
+     * ==========
+     * ★ 2.37 关键改动：不再用模态 ProgressDialog。
+     *   旧写法弹的是一个 setCancelable(false) 的进度对话框 —— 它是独立窗口、独占输入焦点，
+     *   7MB 下载几秒到几十秒里遥控器按上下左右/确定/返回全都落到这个对话框上，等于整个 app 被冻住，
+     *   也没法切去看视频。现在：
+     *     · 后台线程下载（低优先级），全程零对话框；
+     *     · 进度用自绘 Toast 轻提示（每 10% 一次），不抢焦点，不影响任何按键；
+     *     · 下载完成后不自动拉起安装器（会打断播放），只记录「待安装版本」+ 提示；
+     *       首页在前台时就地弹一句「立即安装 / 稍后」，用户在播放页则完全静默，等他回来再装。
+     */
     private fun downloadAndInstall(info: UpdateChecker.Info) {
-        // 进度条：旧代码只有一句 Toast，下载 7MB 期间界面毫无反馈，看着像没反应
-        val dlg = try {
-            android.app.ProgressDialog(this).apply {
-                setMessage("正在下载 ${info.versionName} …")
-                setProgressStyle(android.app.ProgressDialog.STYLE_HORIZONTAL)
-                setMax(100)
-                setProgress(0)
-                setCancelable(false)
-                show()
-            }
-        } catch (_: Throwable) { null }
+        if (updateDownloading) {
+            CustomToast.show(this, "更新已在后台下载，不用重复点")
+            return
+        }
+        // 本地已有同版本包：直接进安装，不重复下载
+        if (Prefs.getUpdateReady(this) == info.versionName && UpdateChecker.downloadedApk(this) != null) {
+            doInstall()
+            return
+        }
+        updateDownloading = true
+        CustomToast.show(this, "开始后台下载 ${info.versionName}：可照常看视频，下好会提示")
         Thread {
-            val f = UpdateChecker.download(this, info.apkUrl, info.sha256) { p ->
-                handler.post { try { dlg?.progress = p } catch (_: Throwable) {} }
-            }
+            try {
+                android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
+            } catch (_: Throwable) {}
+            var lastPct = -10
+            val f = try {
+                UpdateChecker.download(this, info.apkUrl, info.sha256) { p ->
+                    // 节流：每 10% 提示一次，避免刷屏
+                    if (p - lastPct >= 10 || p >= 100) {
+                        lastPct = p
+                        CustomToast.show(
+                            this,
+                            if (p >= 100) "正在校验 ${info.versionName} …"
+                            else "正在下载 ${info.versionName} · $p%（可正常看视频）"
+                        )
+                    }
+                }
+            } catch (_: Throwable) { null }
+            updateDownloading = false
             handler.post {
-                try { dlg?.dismiss() } catch (_: Throwable) {}
-                if (isFinishing) return@post
                 if (f == null) {
-                    android.widget.Toast.makeText(
-                        this, "下载失败（直连与镜像都试过了），请稍后再试或到 GitHub 手动下载",
-                        android.widget.Toast.LENGTH_LONG
-                    ).show()
-                } else if (!UpdateChecker.install(this, info.sha256)) {
+                    CustomToast.show(this, "下载失败（直连与镜像都试过了），稍后点「检查更新」可重试")
+                    return@post
+                }
+                Prefs.setUpdateReady(this, info.versionName)
+                // 用系统 Toast：用户此刻可能正在播放页，自绘 Toast 挂在首页上是看不见的
+                try {
                     android.widget.Toast.makeText(
                         this,
-                        if (UpdateChecker.needsInstallPermission(this)) "请在系统设置里允许本应用「安装未知应用」，再点一次立即升级"
-                        else "安装包异常，已删除，请重新下载",
+                        "${info.versionName} 下载完成，回到首页即可一键安装（不影响当前播放）",
                         android.widget.Toast.LENGTH_LONG
                     ).show()
-                }
+                } catch (_: Throwable) {}
+                if (uiForeground && !isFinishing) maybeOfferInstall()
             }
         }.start()
+    }
+
+    /**
+     * 有「已下好待安装」的包时，就地给一键安装入口。
+     * 只在首页前台时调用 —— 在播放页里绝不弹窗，等用户自己回到首页再问，不打断播放。
+     */
+    private fun maybeOfferInstall() {
+        if (installPromptShowing) return
+        val ready = Prefs.getUpdateReady(this)
+        val apk = UpdateChecker.downloadedApk(this) ?: return
+        if (ready.isBlank() || ready == BuildConfig.VERSION_NAME) return
+        if (ready == Prefs.getSkipVersion(this)) return
+        installPromptShowing = true
+        try {
+            android.app.AlertDialog.Builder(this)
+                .setTitle("${ready} 已下载完成")
+                .setMessage(
+                    "当前版本 ${BuildConfig.VERSION_NAME}，安装包已在本地（约 ${apk.length() / 1024 / 1024} MB）。\n\n" +
+                    "点「立即安装」调起系统安装器（安装时会短暂退出当前界面，装好重新打开即可）。"
+                )
+                .setPositiveButton("立即安装") { _, _ ->
+                    installPromptShowing = false
+                    Prefs.setSkipVersion(this, "")
+                    doInstall()
+                }
+                .setNeutralButton("删除") { _, _ ->
+                    installPromptShowing = false
+                    apk.delete()
+                    Prefs.setUpdateReady(this, "")
+                    CustomToast.show(this, "已删除本地安装包")
+                }
+                .setNegativeButton("稍后") { _, _ ->
+                    installPromptShowing = false
+                    Prefs.setSkipVersion(this, ready)
+                    CustomToast.show(this, "已保存，下次仍可点「检查更新」安装")
+                }
+                .setOnDismissListener {
+                    installPromptShowing = false
+                    showControlsIfAny()
+                }
+                .show()
+        } catch (_: Throwable) {
+            installPromptShowing = false
+        }
+    }
+
+    /** 调起系统安装器（内部再校验一次 APK，损坏则自动清掉待安装标记） */
+    private fun doInstall() {
+        val ok = try { UpdateChecker.install(this, "") } catch (_: Throwable) { false }
+        if (ok) {
+            Prefs.setUpdateReady(this, "")
+            return
+        }
+        if (UpdateChecker.needsInstallPermission(this)) {
+            CustomToast.show(this, "请在系统设置里允许本应用「安装未知应用」，再点一次「立即安装」")
+        } else {
+            UpdateChecker.downloadedApk(this)?.delete()
+            Prefs.setUpdateReady(this, "")
+            CustomToast.show(this, "安装包异常，已删除，请重新下载")
+        }
+    }
+
+    /** 首页是否在前台：决定下载完成后是就地弹安装确认，还是只静默记下不打断 */
+    @Volatile private var uiForeground = false
+    /** 正在后台下载，避免重复触发 */
+    @Volatile private var updateDownloading = false
+    /** 安装提示正在显示（避免 onResume 反复弹） */
+    @Volatile private var installPromptShowing = false
+
+    override fun onPause() {
+        uiForeground = false
+        super.onPause()
     }
 
     /** 弹窗关闭后把控制栏恢复（各页实现不同，这里尽力而为） */
@@ -274,6 +382,7 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        uiForeground = true
         // 从播放页返回时：若冷启动走了「恢复直通」没建首页 UI，这里补建并拉流
         if (!uiReady) {
             if (skipNextResumeUi) {
@@ -285,6 +394,8 @@ class MainActivity : Activity() {
             loadFollowFeed(reset = true)
             navRecommend.post { navRecommend.requestFocus() }
         }
+        // ★ 在播放页里下完的更新，回到首页才提示安装（绝不打断正在看的视频）
+        navRecommend.postDelayed({ if (uiForeground) maybeOfferInstall() }, 1200)
     }
 
     // ================================================================
