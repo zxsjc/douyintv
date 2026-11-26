@@ -5,16 +5,25 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.AttributeSet
 import android.view.View
 import java.util.Random
 
 /**
- * 轻量弹幕层（纯 Canvas，无第三方库，API 17 兼容）。
+ * 轻量弹幕层（纯 Canvas 绘制，无第三方库，API 17 兼容）。
  *
- * 文案由播放器喂入（默认取当前视频的评论区文案），
- * 像 B 站弹幕一样从左向右飞过屏幕。
- * 透明叠加在视频之上：不拦截触摸/焦点，纯被动显示。
+ * 文案由播放器喂入（默认取当前视频的评论区文案），从右向左飞过画面。
+ * 透明叠加在视频之上：不拦截焦点/触摸，纯被动显示。
+ *
+ * ★★ 2.34 关键修复 ★★
+ *   本类此前只有「动画循环」(tick / maybeSpawn) —— 数据拉到了、定时器也在跑、
+ *   items 里也有条目，但**从来没有 onDraw**：一帧都没画到画布上。
+ *   于是表现成「弹幕开关是开的，屏幕上却什么都没有」，而日志里评论区明明
+ *   拿到了 29 条文案。现在补齐真正的绘制。
+ *
+ * ★ 视频区域限制：竖屏视频两侧有大黑边，弹幕只允许在真实画面区域内飞，
+ *   由 PlayerActivity 调 setBand() 告知左右边界；未设置时退化为整屏宽度。
  */
 class DanmakuView @JvmOverloads constructor(
     context: Context,
@@ -24,87 +33,198 @@ class DanmakuView @JvmOverloads constructor(
 
     private class Item(
         val text: String,
-        val color: Int,
-        var x: Float,          // 当前 x（px）
-        val y: Float,          // 纵向位置（0..1 比例）
-        val speed: Float,      // 每帧移动 px
-        val paint: Paint
+        val paint: Paint,      // 自带字号/颜色的画笔
+        var x: Float,          // 当前左边缘 x（px）
+        val y: Float,          // 基线 y（px）
+        val speed: Float,      // px / 秒
+        val tw: Float,         // 文字宽度（px，缓存，避免每帧重新测量）
+        val lane: Int          // 所在横道（0..LANES-1）
     )
+
+    private companion object {
+        const val LANES = 7                 // 横道数量
+        const val MAX_ITEMS = 24            // 同屏上限（A7 上也能跑满 30fps）
+        const val SPAWN_GAP_MS = 240L       // 发射间隔 ≈ 4 条/秒（再密就糊成一片）
+        const val CROSS_SECONDS = 8f        // 一条弹幕横穿画面的耗时
+        const val MAX_TEXT = 28             // 单条字数上限（抖音评论常常是整段话）
+        const val FRAME_MS = 33L            // ≈30fps
+    }
 
     private val items = ArrayList<Item>()
     private val handler = Handler(Looper.getMainLooper())
     private var running = false
-    private var pool = ArrayList<String>()       // 待发射文案池
+    private var pool = ArrayList<String>()     // 待发射文案池
     private var poolIdx = 0
     private val rnd = Random()
-    private var spawnCounter = 0
+    private var lastFrame = 0L
+    private var lastSpawn = 0L
 
-    private val basePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        textSize = 30f * (resources.displayMetrics.scaledDensity.coerceAtLeast(1f))
-        setShadowLayer(6f, 0f, 2f, 0xFF000000.toInt())   // 黑描边保证视频上可读
+    // 画面可视区域（默认 0 表示「未设置 → 用整屏」）
+    private var bandL = 0f
+    private var bandR = 0f
+
+    // 白（主力）/ 黄 / 品牌红 / 绿 / 蓝 / 橙
+    private val COLORS = intArrayOf(
+        0xFFFFFFFF.toInt(),
+        0xFFFFE066.toInt(),
+        0xFFFE2C55.toInt(),
+        0xFF81C784.toInt(),
+        0xFF64B5F6.toInt(),
+        0xFFFFB74D.toInt()
+    )
+
+    /** 黑描边：画在彩色字右下方 2px 处，保证亮背景（白墙/浅色画面）上也看得清 */
+    private val outlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xE6000000.toInt()
+        isFakeBoldText = true
     }
 
-    private val COLORS = intArrayOf(
-        0xFFFFFFFF.toInt(),  // 白（主力）
-        0xFFFFE066.toInt(),  // 黄
-        0xFFFE2C55.toInt(),  // 品牌红
-        0xFF81C784.toInt(),  // 绿
-        0xFF64B5F6.toInt(),  // 蓝
-        0xFFFFB74D.toInt()   // 橙
-    )
+    init {
+        // 纯显示层：绝不抢焦点、不拦遥控器
+        isClickable = false
+        isFocusable = false
+        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+    }
+
+    private fun spanLeft(): Float = if (bandR > bandL) bandL else 0f
+    private fun spanRight(): Float = if (bandR > bandL) bandR else width.toFloat()
+
+    /** 字号随屏宽变化（1920 → ≈35px），电视远距离观看足够清楚 */
+    private fun textSizePx(): Float = (width * 0.0185f).coerceIn(20f, 38f)
+
+    /**
+     * 告知「真实画面」的左右边界（竖向铺满，横向用于限制弹幕范围）。
+     * 竖屏视频两侧是黑边，弹幕只应在画面里飞；变化明显时才清屏重排。
+     */
+    fun setBand(left: Float, right: Float) {
+        val l = left.coerceAtLeast(0f)
+        val r = if (right > l + 1f) right else width.toFloat()
+        if (Math.abs(l - bandL) < 20f && Math.abs(r - bandR) < 20f) return
+        bandL = l
+        bandR = r
+        items.clear()
+    }
 
     private val tick = object : Runnable {
         override fun run() {
             if (!running) return
-            val w = width
-            if (w > 0) {
-                // 移动 + 出屏回收
+            val now = SystemClock.uptimeMillis()
+            val dt = if (lastFrame == 0L) 0.033f
+                     else ((now - lastFrame) / 1000f).coerceIn(0.001f, 0.12f)
+            lastFrame = now
+            if (width > 0 && height > 0) {
+                // ① 移动 + 出画面回收
                 var i = 0
                 while (i < items.size) {
                     val it = items[i]
-                    it.x -= it.speed
-                    val pw = it.paint.measureText(it.text)
-                    if (it.x + pw < -20f) items.removeAt(i) else i++
+                    it.x -= it.speed * dt
+                    if (it.x + it.tw < spanLeft() - 20f) items.removeAt(i) else i++
                 }
-                maybeSpawn(w)
+                // ② 按节奏发射
+                var guard = 0
+                while (now - lastSpawn >= SPAWN_GAP_MS && items.size < MAX_ITEMS
+                    && pool.isNotEmpty() && guard < 4) {
+                    if (!spawnOne(now)) break
+                    guard++
+                }
+                // ③ 真正画出来（此前缺的就是这一步）
                 invalidate()
             }
-            handler.postDelayed(this, 33)
+            handler.postDelayed(this, FRAME_MS)
         }
     }
 
-    /** 按节奏发射新弹幕（5 条横道随机入道） */
-    private fun maybeSpawn(w: Int) {
-        if (pool.isEmpty()) return
-        if (items.size >= 22) return
-        if (rnd.nextInt(3) != 0) return          // ≈每 100ms 平均一条
-        if (++spawnCounter > 100000) spawnCounter = 0
-        val text = pool[poolIdx % pool.size]
-        poolIdx++
-        val lane = rnd.nextInt(5)
-        val y = 0.10f + 0.15f * lane             // 上 10% ~ 70% 区域
-        val speed = 4.5f + rnd.nextFloat() * 2.5f
-        val paint = Paint(basePaint).apply { this.color = COLORS[rnd.nextInt(COLORS.size)] }
-        val item = Item(text, paint.color, w.toFloat() + rnd.nextFloat() * 150f, height * y, speed, paint)
-        items.add(item)
+    /** 发一条弹幕；当前横道都挤着时返回 false（本帧不发） */
+    private fun spawnOne(now: Long): Boolean {
+        val h = height
+        if (width <= 0 || h <= 0 || pool.isEmpty()) return false
+        val lane = pickLane() ?: return false
+
+        val text = pool[poolIdx]
+        poolIdx = (poolIdx + 1) % pool.size
+
+        val size = textSizePx()
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = size
+            color = COLORS[rnd.nextInt(COLORS.size)]
+            isFakeBoldText = true
+        }
+        val tw = paint.measureText(text)
+
+        // 纵向：屏幕上 6% ~ 78% 之间分 7 条横道（避开顶部信息条与底部字幕区）
+        val laneH = h * 0.112f
+        val y = h * 0.065f + lane * laneH + size * 1.15f
+        val right = spanRight()
+        val speed = (right - spanLeft() + tw) / CROSS_SECONDS
+
+        items.add(Item(text, paint, right + 8f, y, speed, tw, lane))
+        lastSpawn = now
+        return true
     }
 
-    /** 播放器喂入弹幕文案（切视频时先 setContent 新的） */
+    /**
+     * 选一条「最后一条弹幕已经飞出去足够远」的横道，防止文字叠在一起。
+     * 全部挤着就返回 null，等下一帧再试。
+     */
+    private fun pickLane(): Int? {
+        val right = spanRight()
+        val rightEdge = FloatArray(LANES)
+        for (l in 0 until LANES) rightEdge[l] = -1e7f
+        for (it in items) {
+            val r = it.x + it.tw
+            if (r > rightEdge[it.lane]) rightEdge[it.lane] = r
+        }
+        val gap = textSizePx() * 2.2f
+        val free = ArrayList<Int>(LANES)
+        for (l in 0 until LANES) if (rightEdge[l] < right - gap) free.add(l)
+        return if (free.isEmpty()) null else free[rnd.nextInt(free.size)]
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        if (items.isEmpty()) return
+        // 只画在真实画面区域里：竖屏视频的黑边上不该出现弹幕
+        val l = spanLeft()
+        val r = spanRight()
+        canvas.save()
+        canvas.clipRect(l, 0f, r, height.toFloat())
+        for (it in items) {
+            outlinePaint.textSize = it.paint.textSize
+            canvas.drawText(it.text, it.x + 2f, it.y + 2f, outlinePaint)   // 黑描边
+            canvas.drawText(it.text, it.x, it.y, it.paint)                  // 彩色字
+        }
+        canvas.restore()
+    }
+
+    /** 播放器喂入弹幕文案（切视频时重新 setContent） */
     fun setContent(texts: List<String>) {
-        pool = ArrayList(texts.filter { it.isNotBlank() })
+        val clean = ArrayList<String>(texts.size)
+        for (raw in texts) {
+            var t = raw.replace('\r', ' ').replace('\n', ' ')
+                .replace(Regex("\\s+"), " ").trim()
+            if (t.isEmpty()) continue
+            if (t.length > MAX_TEXT) t = t.substring(0, MAX_TEXT) + "…"
+            clean.add(t)
+        }
+        pool = clean
         poolIdx = 0
         items.clear()
+        lastSpawn = 0
+        lastFrame = 0
+        invalidate()
     }
 
     /** 开/关：开启启动动画循环；关闭停帧并清屏 */
     fun setRunning(on: Boolean) {
         if (running == on) return
         running = on
+        handler.removeCallbacks(tick)
         if (on) {
-            handler.removeCallbacks(tick)
+            lastFrame = 0L
+            // 立刻允许发射第一条（否则要等满一个 240ms 间隔）
+            lastSpawn = SystemClock.uptimeMillis() - SPAWN_GAP_MS
             handler.post(tick)
         } else {
-            handler.removeCallbacks(tick)
             items.clear()
             invalidate()
         }
@@ -112,6 +232,7 @@ class DanmakuView @JvmOverloads constructor(
 
     override fun onDetachedFromWindow() {
         handler.removeCallbacks(tick)
+        running = false
         super.onDetachedFromWindow()
     }
 }

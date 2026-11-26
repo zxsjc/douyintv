@@ -11,10 +11,10 @@ android {
         applicationId 'com.example.douyintv'
         minSdk 17
         targetSdk 26
-        versionCode 133            // ★ 版本号规则（用户定）：对外显示十进制小进位 —— 1.99 → 2.00 → 2.01 …
+        versionCode 134            // ★ 版本号规则（用户定）：对外显示十进制小进位 —— 1.99 → 2.00 → 2.01 …
             //   versionCode 只保证单调递增（Android 升级判断），与显示名不必一一对应。
             //   例：code 99 → "1.99"，code 100 → "2.00"，code 101 → "2.01"。
-            versionName "2.33"
+            versionName "2.34"
 
         // ★ 只打 32 位原生库（体积优化）★
         //   目标机是 Cortex-A7 + Android 4.2 —— 32 位 ARM。
@@ -134,4 +134,98 @@ dependencies {
     // ★ JVM 单元测试里 android.jar 的 org.json 是空桩（方法体为空），
     //   会让 CookieNormalizeTest 这类测试假失败。加真实实现覆盖它。
     testImplementation 'org.json:json:20231013'
+}
+
+// ★★ 构建后自动生成 version.json（工程根目录）★★
+//   全部字段由真实产物推导，不需要手填：
+//     versionCode / versionName ← android.defaultConfig
+//     sha256 / size             ← 实际打出的 APK 文件
+//     notes                     ← CHANGELOG.md 里对应版本的章节
+//     apkUrl                    ← 默认 GitHub Release 规则地址，可用 -PdtvApkUrl=... 覆盖
+//   这样清单永远和包一致，不会再出现「清单写 2.30、实际装 2.33」的错位。
+tasks.register('writeVersionJson') {
+    group = 'dtv'
+    description = '构建后按真实产物生成工程根目录 version.json'
+
+    doLast {
+        def cfg = project.extensions.getByName('android').defaultConfig
+        def vName = cfg.versionName
+        def vCode = cfg.versionCode
+
+        def outDir = project.layout.buildDirectory.dir('outputs/apk/debug').get().asFile
+        def apk = new File(outDir, "Dtv-${vName}-debug.apk")
+        def sha = ''
+        def size = 0L
+        if (apk.exists()) {
+            size = apk.length()
+            def md = java.security.MessageDigest.getInstance('SHA-256')
+            apk.withInputStream { ins ->
+                def buf = new byte[8192]
+                int n
+                while ((n = ins.read(buf)) > 0) md.update(buf, 0, n)
+            }
+            sha = md.digest().collect { String.format('%02x', it) }.join('')
+        } else {
+            logger.warn("[writeVersionJson] 未找到 ${apk}，sha256/size 留空")
+        }
+
+        // 从 CHANGELOG 抽取本版说明（最多 7 条）
+        def notes = ''
+        def clog = new File(rootProject.projectDir, 'CHANGELOG.md')
+        if (clog.exists()) {
+            def lines = clog.getText('UTF-8').readLines()
+            def start = lines.findIndexOf { it.trim().startsWith("## ${vName}") }
+            if (start >= 0) {
+                // 只取小节标题（**① xxx**）作为「更新说明」：下面那些
+                // 「- 根因：…」「- 修复：…」是技术细节，塞进更新弹窗只会变成
+                // 一坨用户读不完的长文。
+                def heads = []
+                def bullets = []
+                for (int i = start + 1; i < lines.size(); i++) {
+                    def ln = lines[i].trim()
+                    if (ln.startsWith('## ')) break
+                    if (ln.startsWith('**') && ln.endsWith('**') && ln.length() > 4) {
+                        def t = ln.replace('**', '').trim()
+                        t = t.replaceAll('^[\\u2460-\\u2469]+\\s*', '')
+                        if (t) heads.add(t)
+                    } else if (ln.startsWith('- ')) {
+                        bullets.add(ln.substring(2).replace('`', '').trim())
+                    }
+                }
+                def out = heads ?: bullets
+                def sb = new StringBuilder()
+                for (int i = 0; i < out.size() && i < 6; i++) {
+                    def t = out[i]
+                    if (t.length() > 80) t = t.substring(0, 80) + '…'
+                    sb.append("${i + 1}. ${t}\n")
+                }
+                notes = sb.toString().trim()
+            }
+        }
+        if (!notes) notes = "版本 ${vName}（versionCode ${vCode}）"
+
+        def url = project.findProperty('dtvApkUrl') ?:
+                "https://github.com/zxsjc/douyintv/releases/download/${vName}/Dtv-${vName}-debug.apk"
+
+        def notesJson = notes.readLines().collect { it.replace('"', "'") }.join('\\n')
+        def sb = new StringBuilder()
+        sb.append('{\n')
+        sb.append('    "versionCode": ').append(vCode).append(',\n')
+        sb.append('    "versionName": "').append(vName).append('",\n')
+        sb.append('    "apkUrl": "').append(url).append('",\n')
+        sb.append('    "sha256": "').append(sha).append('",\n')
+        sb.append('    "size": ').append(size).append(',\n')
+        sb.append('    "notes": "').append(notesJson).append('",\n')
+        sb.append('    "force": false\n')
+        sb.append('}\n')
+        new File(rootProject.projectDir, 'version.json').setText(sb.toString(), 'UTF-8')
+        logger.lifecycle("[writeVersionJson] version.json 已更新：${vName} / ${vCode} / ${size} B / sha256=${sha ? sha.substring(0, 12) + '…' : '空'}")
+    }
+}
+
+gradle.projectsEvaluated {
+    ['assembleDebug', 'assembleRelease'].each { n ->
+        def t = project.tasks.findByName(n)
+        if (t != null) t.finalizedBy(project.tasks.named('writeVersionJson'))
+    }
 }

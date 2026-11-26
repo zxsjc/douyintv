@@ -1,8 +1,9 @@
 {
-    "versionCode": 133,
-    "versionName": "2.33",
-    "apkUrl": "https://github.com/zxsjc/douyintv/releases/download/2.33/Dtv-2.33-debug.apk",
-    "sha256": "",
-    "notes": "1. 修复系统/IJK 播放器竖屏视频被拉宽变形（等比缩放+黑边）\n2. 移除播放历史与收藏模块\n3. 修复在线更新：安装权限、镜像下载、版本号比较",
+    "versionCode": 134,
+    "versionName": "2.34",
+    "apkUrl": "https://github.com/zxsjc/douyintv/releases/download/2.34/Dtv-2.34-debug.apk",
+    "sha256": "582e258b8691ddbb82d40f313a61267e92c675d93043da2bed6b9f7f8f85523b",
+    "size": 7915212,
+    "notes": "1. 弹幕开着却不显示（核心修复）\n2. version.json 构建时自动生成",
     "force": false
 }

@@ -1341,6 +1341,7 @@ private fun cur(): DouyinApi.VideoItem? {
         }
         d.visibility = View.VISIBLE
         d.setRunning(!paused)
+        updateDanmakuBand()
         loadDanmaku()
     }
 
@@ -1351,13 +1352,23 @@ private fun cur(): DouyinApi.VideoItem? {
         val cookie = Prefs.getCookie(this)
         Thread {
             val texts = try {
+                // ★ 只取评论正文：带「昵称：」前缀时，长昵称会把整条弹幕占满，
+                //   屏幕上全是人名、看不到内容（实测截图就是这个效果）。
                 DouyinApi.fetchComments(cookie, it.awemeId, 0, 30)
-                    ?.map { c -> (if (c.user.isNotBlank()) "${c.user}：" else "") + c.text }
+                    ?.map { c -> c.text }
                     ?: emptyList()
             } catch (_: Exception) { emptyList() }
             handler.post {
                 if (isFinishing || !Prefs.getDanmaku()) return@post
                 danmaku?.setContent(texts)
+                // ★ 2.34：加载结果为空时必须给反馈 —— 否则用户只看到
+                //   「弹幕开着却什么都没有」，分不清是评论为空还是功能坏了。
+                if (texts.isEmpty()) {
+                    Log.d(TAG, "弹幕：评论区没有可显示文案")
+                    flash("弹幕：本视频评论为空")
+                } else {
+                    Log.d(TAG, "弹幕：已加载 ${texts.size} 条")
+                }
             }
         }.start()
     }
@@ -1792,6 +1803,8 @@ private fun cur(): DouyinApi.VideoItem? {
         val ratio = w.toFloat() / h.toFloat()
         val eng = currentEngine()
         try { eng.setVideoAspect(w, h) } catch (_: Throwable) {}
+        // 弹幕只能在真实画面里飞：几何一变就重算边界（缩放在 post 里生效，故延后一拍）
+        handler.postDelayed({ updateDanmakuBand() }, 350L)
         if (eng is ExoEngine) {
             // ★ 回到用户认可的 AspectFrame 约束方式 ★
             //   Exo 的 setVideoScalingMode(SCALE_TO_FIT) 只对 TextureView 生效，
@@ -1847,6 +1860,30 @@ private fun cur(): DouyinApi.VideoItem? {
                     applySurfaceScale(ratio)
                 }
             }
+        } catch (_: Throwable) {}
+        updateDanmakuBand()
+    }
+
+    /**
+     * 把「真实画面的左右边界」告诉弹幕层。
+     * 竖屏视频在 16:9 屏上左右各有大黑边，弹幕跑到黑边上非常出戏；
+     * 这里用 SurfaceView 的布局位置 + 图层缩放反推出实际显示矩形。
+     * （每一秒自检会调一次，值不变时 DanmakuView 内部直接 return，零开销）
+     */
+    private fun updateDanmakuBand() {
+        val dm = danmaku ?: return
+        if (!::surface.isInitialized) return
+        try {
+            val vw = surface.width
+            val vh = surface.height
+            if (vw <= 0 || vh <= 0 || dm.width <= 0) return
+            // 图层缩放是围绕中心缩放的 → 实际显示宽度 = 布局宽 × scaleX
+            val dw = vw * surface.scaleX
+            val cx = (aspectFrame.left + surface.left) + vw / 2f
+            val left = (cx - dw / 2f).coerceIn(0f, dm.width.toFloat())
+            val right = (cx + dw / 2f).coerceIn(0f, dm.width.toFloat())
+            if (right - left < 80f) return      // 极端细条（1:20 之类）不退让，直接用整屏
+            dm.setBand(left, right)
         } catch (_: Throwable) {}
     }
 

@@ -4,6 +4,18 @@
 > 每版留档：源码备份在 _BACKUP_Dtv_v<版本>，APK 留档在 artifacts/apk/TVDouyinNative/。
 > 版本号规则：十进制小进位（1.99 → 2.00 → 2.01）；versionCode 单调递增（Android 升级判断）。
 
+## 2.34（versionCode 134）
+
+**① 弹幕开着却不显示（核心修复）**
+- 根因：`DanmakuView` 只有动画循环（tick / maybeSpawn），**从来没有 `onDraw`** —— 文案拉到了、items 里也有条目、定时器一直在跑，但一帧都没画到画布上。日志里评论区明明拿到了 29 条，屏幕上却空空如也。
+- 修复：补齐真正的绘制（黑描边 + 彩色字，2px 偏移保证亮背景可读），并顺带优化排版：6 条横道按「上一条已飞远」挑选防重叠、字号随屏宽自适应（1920 → 41px）、单条文字截断 34 字（抖音评论常是长段落）、横穿 8 秒、每 180ms 发一条。
+- 弹幕只在**真实画面区域**内飞：竖屏视频两侧的大黑边上不再出现文字（`PlayerActivity.updateDanmakuBand()` 按 SurfaceView 布局 + 图层缩放反推可视矩形，每秒自检一次，值不变时零开销）。
+- 评论区为空时不再静默：提示「弹幕：本视频评论为空」并写日志，能区分「没评论」和「功能坏了」。
+
+**② version.json 构建时自动生成**
+- 新增 Gradle 任务 `writeVersionJson`，挂在 `assembleDebug` / `assembleRelease` 之后（`gradle assembleDebug` 即自动跑）。
+- 字段全部由真实产物推导：versionCode/versionName 取 `defaultConfig`；sha256、size 取实际 APK；notes 取 CHANGELOG 本版章节；apkUrl 走 GitHub Release 规则（可用 `-PdtvApkUrl=...` 覆盖）。彻底避免清单与包错位、sha256 手填漏填。
+
 ## 2.33（versionCode 133）
 
 **① 三类播放器竖屏视频变形（系统 / IJK / Exo）**
