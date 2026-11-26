@@ -469,23 +469,32 @@ class PlayerActivity : Activity(), SurfaceHolder.Callback, VideoEngine.Listener,
                     preparedOnce && !paused && !buffering &&
                     firstFrameForToken != playToken && blackRetryCount < maxBlackRetries &&
                     pos > 5000L) {
-                    // ★★★「有声音无画面」修复（第 3 版）★★★
-                    //   教训：上一版无首帧就换引擎，但三个引擎拿到的是【同一条坏地址】
-                    //   （bit_rate 选档解不出画面）→ 换引擎永远没用，正是 TRIN 现象。
-                    //   官方抖音能播是因为它用 /aweme/v1/play/ 主链，而我们把该地址
-                    //   放在 candidateUrls() 首位了。所以正确顺序是：
-                    //   ① 无首帧 → 先循环换【线路】（每条地址都试一遍，含官方长效地址）；
-                    //   ② 所有线路都试过仍无画面 → 才换引擎（并回到第一条线路）。
-                    //   注意：position 前进不能当「有画面」——音频在解码时照样前进。
+                    // ★★★「有声音无画面」修复（第 4 版，正确解法）★★★
+                    //   教训链：
+                    //     · 换引擎没用 —— 三个引擎拿到同一条 bit_rate 坏档；
+                    //     · 把裸 /aweme/v1/play/ 塞进线路也没用 —— 播放器带不齐
+                    //       Cookie/Referer、302 跨域丢 headers → 风控页 → 一直缓冲。
+                    //   正解：无首帧时用 DouyinApi.refreshViaPlayApi（OkHttp 带完整
+                   //   headers + Cookie）请求 play 接口，拿它 302 后的【官方 CDN 直链】，
+                   //   再喂给播放器 —— 这正是官方抖音能播的那条流。
+                    //   position 前进不能当「有画面」——音频解码时照样前进。
                     blackRetryCount++
-                    val urls = candidateUrls()
-                    if (urls.size > 1 && urlAttempt < urls.size - 1) {
-                        urlAttempt++
-                        Log.w(TAG, "黑屏看门狗：位置 ${pos}ms 无首帧 → 换线路 ${urlAttempt + 1}/${urls.size}")
-                        playCurrent()
+                    val it = cur()
+                    val key = "bf_" + (it?.awemeId ?: "")
+                    if (it != null && it.awemeId.isNotBlank() && refreshedIds.add(key)) {
+                        // ① 先试带 Cookie 解析出的官方新鲜直链（对 TRIN 这类最有效）
+                        Log.w(TAG, "黑屏看门狗：位置 ${pos}ms 无首帧 → 解析官方主链 ${it.awemeId}")
+                        refreshUrlAndReplay(it)
                     } else {
-                        Log.w(TAG, "黑屏看门狗：位置 ${pos}ms 仍无视频首帧 → 换引擎重播 ($blackRetryCount/$maxBlackRetries)")
-                        switchToNextEngineAndReplay("无视频首帧")
+                        val urls = candidateUrls()
+                        if (urls.size > 1 && urlAttempt < urls.size - 1) {
+                            urlAttempt++
+                            Log.w(TAG, "黑屏看门狗：无首帧 → 换线路 ${urlAttempt + 1}/${urls.size}")
+                            playCurrent()
+                        } else {
+                            Log.w(TAG, "黑屏看门狗：仍无首帧 → 换引擎 ($blackRetryCount/$maxBlackRetries)")
+                            switchToNextEngineAndReplay("无视频首帧")
+                        }
                     }
                 }
             } catch (_: Exception) {
@@ -843,16 +852,12 @@ private fun cur(): DouyinApi.VideoItem? {
         return cachedCollected
     }
 
-    /** 作品发布日期：优先「年-月-日」，同年内省略年份，跨年补年份 */
+    /** 作品发布日期：完整「年-月-日」格式 */
     private fun formatPublishDate(createTimeSec: Long): String {
         return try {
             val ms = if (createTimeSec < 100000000000L) createTimeSec * 1000L else createTimeSec
             val d = java.util.Date(ms)
-            val now = java.util.Date()
-            val yNow = java.text.SimpleDateFormat("yyyy", java.util.Locale.getDefault()).format(now)
-            val yPost = java.text.SimpleDateFormat("yyyy", java.util.Locale.getDefault()).format(d)
-            val pattern = if (yNow == yPost) "MM-dd" else "yyyy-MM-dd"
-            "发布于 " + java.text.SimpleDateFormat(pattern, java.util.Locale.getDefault()).format(d)
+            "发布于 " + java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(d)
         } catch (_: Throwable) { "" }
     }
 
@@ -944,18 +949,17 @@ private fun cur(): DouyinApi.VideoItem? {
         val list = mutableListOf<String>()
         val isLocal = feedSource == FeedBus.SOURCE_HISTORY || feedSource == FeedBus.SOURCE_COLLECT
 
-        // ★★★ 首播就用「官方能播的长效地址」★★★
-        //   根因：解析层用 bit_rate 选档作主链（videoUrl），TRIN 这类图表作品选出的
-        //   档位解不出画面（有声音无画面）；而官方抖音用的是 /aweme/v1/play/ 主链，
-        //   每次请求都 302 到官方当前有效的 CDN 直链，必然能播。
-        //   该地址按 aweme_id 现场构造，签名永远新鲜 —— 历史/收藏旧直链也一并解决。
-        //   ★ 对所有来源都置顶，不只本地：关注流里的 TRIN 作品首播就能出画面。
-        if (it.awemeId.isNotBlank()) {
-            list.add(DouyinApi.stablePlayUrl(it.awemeId))
-        }
-        // altUrls 里若也带长效地址，合并进来（去重）
-        it.altUrls.firstOrNull { u -> u.contains("/aweme/v1/play/") }?.let { stable ->
-            if (stable.isNotBlank() && stable !in list) list.add(stable)
+        // ★ 历史/收藏起播提速 ★
+        //   本地旧记录存的主链是带时效签名的直链，隔天必过期；而 altUrls 里的
+        //   /aweme/v1/play/ 是长效接口地址（每次请求 302 到新鲜 CDN）。
+        //   ★ 重要：这个 play 接口地址【不能】直接喂给播放器 —— ExoPlayer 请求时
+        //     带不齐 Cookie/Referer、302 跨域后 headers 丢失，会拿到风控页 → 一直缓冲。
+        //     它只能由 DouyinApi.refreshViaPlayApi（OkHttp 带完整 headers）解析成
+        //     CDN 直链后使用。所以这里给 IJK/系统的地址由 urlForEngine().resolve302 处理，
+        //     给 Exo 的则由黑屏看门狗走 refreshViaPlayApi 自救。
+        if (isLocal) {
+            val stable = it.altUrls.firstOrNull { u -> u.contains("/aweme/v1/play/") }
+            if (stable != null && stable.isNotBlank()) list.add(stable)
         }
         if (it.videoUrl.isNotBlank() && it.videoUrl !in list) list.add(it.videoUrl)
         it.altUrls.forEach { u -> if (u.isNotBlank() && u !in list) list.add(u) }
@@ -2037,10 +2041,11 @@ private fun cur(): DouyinApi.VideoItem? {
         val eng = currentEngine()
         try { eng.setVideoAspect(w, h) } catch (_: Throwable) {}
         if (eng is ExoEngine) {
-            // ★ Exo 引擎内部已用 SCALE_TO_FIT 做等比 letterbox（见 Engines.kt）。
-            //   这里再用 AspectFrame 约束容器 = 双重缩放，两者对 SAR 的处理稍有差异
-            //   就会变形。统一为「容器铺满 + 图层不缩放」，只留引擎一层等比。
-            handler.post { resetAspect() }
+            // ★ 回到用户认可的 AspectFrame 约束方式 ★
+            //   Exo 的 setVideoScalingMode(SCALE_TO_FIT) 只对 TextureView 生效，
+            //   对本项目用的 SurfaceView 无效 —— 上一版去掉容器约束后画面被拉伸变形。
+            //   必须用 AspectFrame 按视频比例约束 SurfaceView 尺寸来等比显示。
+            handler.post { applyAspect(ratio) }
             handler.post { resetSurfaceScale() }
         } else if (eng.stretchesToFillSurface()) {
             // IJK / 系统播放器：不碰 Surface 尺寸（会触发整段重播），只缩放图层
@@ -2063,12 +2068,15 @@ private fun cur(): DouyinApi.VideoItem? {
         if (sw <= 0 || sh <= 0) return
         try {
             if (eng is ExoEngine) {
-                // Exo 用 SCALE_TO_FIT 自行等比显示：确保容器铺满、图层缩放复位，
-                // 避免上一视频残留的容器约束 / 图层缩放导致变形。
-                if (aspectFrame.aspectRatio != 0f || surface.scaleX != 1f || surface.scaleY != 1f) {
-                    Log.d(TAG, "比例自愈 Exo → 容器铺满 + 图层复位 surf=${sw}x${sh}")
-                    resetAspect()
-                    resetSurfaceScale()
+                // 容器比例不对，或容器比例对但 Surface 实际尺寸没跟上（布局残留）
+                val frameRatio = aspectFrame.aspectRatio
+                val surfRatio = sw.toFloat() / sh.toFloat()
+                if (Math.abs(frameRatio - ratio) > 0.01f ||
+                    (frameRatio > 0f && Math.abs(surfRatio - ratio) > 0.02f)
+                ) {
+                    Log.d(TAG, "比例自愈 Exo frame=$frameRatio surf=${sw}x${sh} video=$ratio")
+                    applyAspect(ratio)
+                    aspectFrame.requestLayout()
                 }
             } else if (eng.stretchesToFillSurface()) {
                 // 图层缩放值 + Surface 尺寸反推的实际显示比要和视频比一致
@@ -2130,12 +2138,17 @@ private fun cur(): DouyinApi.VideoItem? {
                 } else if (videoRatio > viewRatio) {
                     sy = viewRatio / videoRatio
                 }
-                // ★ 始终等比缩放（治「视频变形」）★
-                //   上一版遇到极端比例（sx/sy<0.5）就放弃缩放让画面铺满，
-                //   这等于把视频硬拉伸到屏幕比例 —— 正是用户说的「有时变形」根因。
-                //   现在无论比例多极端都保持等比：窄视频左右留黑边、宽视频上下留黑边，
-                //   画面绝不拉伸变形。真正的图文/长图作品已在 isImagePost 分支走图片
-                //   轮播，不会到这里，所以极端比例只可能是元数据异常，等比显示最安全。
+                // ★「有声音无画面」加固 ★
+                //   某些图表/长图类作品报出的宽高比极端（如 1:20），会让 sx 或 sy
+                //   缩到 0.05 以下 —— 画面被压成一条线，肉眼几乎全黑（音轨照常）。
+                //   缩放系数过小就放弃图层缩放、让画面铺满（宁可轻微拉伸也要看得见）。
+                if (sx < 0.5f || sy < 0.5f) {
+                    surface.scaleX = 1f
+                    surface.scaleY = 1f
+                    if (::barMask.isInitialized) barMask.clear()
+                    Log.w(TAG, "跳过极端比例缩放 video=$videoRatio view=$viewRatio")
+                    return@post
+                }
                 surface.pivotX = vw / 2f
                 surface.pivotY = vh / 2f
                 surface.scaleX = sx

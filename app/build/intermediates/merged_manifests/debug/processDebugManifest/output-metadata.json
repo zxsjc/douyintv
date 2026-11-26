@@ -4,15 +4,15 @@
     "type": "MERGED_MANIFESTS",
     "kind": "Directory"
   },
-  "applicationId": "com.yanzi.music",
+  "applicationId": "com.example.douyintv",
   "variantName": "debug",
   "elements": [
     {
       "type": "SINGLE",
       "filters": [],
       "attributes": [],
-      "versionCode": 49,
-      "versionName": "2.0",
+      "versionCode": 131,
+      "versionName": "2.31",
       "outputFile": "AndroidManifest.xml"
     }
   ],

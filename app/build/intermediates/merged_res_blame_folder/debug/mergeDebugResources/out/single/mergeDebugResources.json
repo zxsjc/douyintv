@@ -1,46 +1,338 @@
 [
     {
-        "merged": "com.yanzi.music.app-debug-4:/mipmap-mdpi_ic_launcher.png.flat",
-        "source": "com.yanzi.music.app-main-6:/mipmap-mdpi/ic_launcher.png"
+        "merged": "com.example.douyintv.app-debug-11:/drawable_focus_card.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/drawable/focus_card.xml"
     },
     {
-        "merged": "com.yanzi.music.app-debug-4:/drawable-xhdpi_ic_stat_music.png.flat",
-        "source": "com.yanzi.music.app-main-6:/drawable-xhdpi/ic_stat_music.png"
+        "merged": "com.example.douyintv.app-debug-11:/drawable-xhdpi_ic_nav_recommend.png.flat",
+        "source": "com.example.douyintv.app-pngs-7:/drawable-xhdpi/ic_nav_recommend.png"
     },
     {
-        "merged": "com.yanzi.music.app-debug-4:/drawable-hdpi_ic_stat_music.png.flat",
-        "source": "com.yanzi.music.app-main-6:/drawable-hdpi/ic_stat_music.png"
+        "merged": "com.example.douyintv.app-debug-11:/drawable-hdpi_ic_nav_collect.png.flat",
+        "source": "com.example.douyintv.app-pngs-7:/drawable-hdpi/ic_nav_collect.png"
     },
     {
-        "merged": "com.yanzi.music.app-debug-4:/mipmap-xxxhdpi_ic_launcher.png.flat",
-        "source": "com.yanzi.music.app-main-6:/mipmap-xxxhdpi/ic_launcher.png"
+        "merged": "com.example.douyintv.app-debug-11:/drawable-anydpi-v21_ic_nav_history.xml.flat",
+        "source": "com.example.douyintv.app-pngs-7:/drawable-anydpi-v21/ic_nav_history.xml"
     },
     {
-        "merged": "com.yanzi.music.app-debug-4:/drawable-xxxhdpi_ic_stat_music.png.flat",
-        "source": "com.yanzi.music.app-main-6:/drawable-xxxhdpi/ic_stat_music.png"
+        "merged": "com.example.douyintv.app-debug-11:/drawable-mdpi_ic_nav_history.png.flat",
+        "source": "com.example.douyintv.app-pngs-7:/drawable-mdpi/ic_nav_history.png"
     },
     {
-        "merged": "com.yanzi.music.app-debug-4:/drawable-nodpi_tv_banner.png.flat",
-        "source": "com.yanzi.music.app-main-6:/drawable-nodpi/tv_banner.png"
+        "merged": "com.example.douyintv.app-debug-11:/layout_item_hot_word.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/layout/item_hot_word.xml"
     },
     {
-        "merged": "com.yanzi.music.app-debug-4:/drawable-xxhdpi_ic_stat_music.png.flat",
-        "source": "com.yanzi.music.app-main-6:/drawable-xxhdpi/ic_stat_music.png"
+        "merged": "com.example.douyintv.app-debug-11:/drawable-mdpi_ic_nav_collect.png.flat",
+        "source": "com.example.douyintv.app-pngs-7:/drawable-mdpi/ic_nav_collect.png"
     },
     {
-        "merged": "com.yanzi.music.app-debug-4:/mipmap-xxhdpi_ic_launcher.png.flat",
-        "source": "com.yanzi.music.app-main-6:/mipmap-xxhdpi/ic_launcher.png"
+        "merged": "com.example.douyintv.app-debug-11:/drawable-mdpi_ic_nav_login.png.flat",
+        "source": "com.example.douyintv.app-pngs-7:/drawable-mdpi/ic_nav_login.png"
     },
     {
-        "merged": "com.yanzi.music.app-debug-4:/drawable-mdpi_ic_stat_music.png.flat",
-        "source": "com.yanzi.music.app-main-6:/drawable-mdpi/ic_stat_music.png"
+        "merged": "com.example.douyintv.app-debug-11:/drawable-anydpi-v21_ic_nav_login.xml.flat",
+        "source": "com.example.douyintv.app-pngs-7:/drawable-anydpi-v21/ic_nav_login.xml"
     },
     {
-        "merged": "com.yanzi.music.app-debug-4:/mipmap-hdpi_ic_launcher.png.flat",
-        "source": "com.yanzi.music.app-main-6:/mipmap-hdpi/ic_launcher.png"
+        "merged": "com.example.douyintv.app-debug-11:/drawable_seekbar_player.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/drawable/seekbar_player.xml"
     },
     {
-        "merged": "com.yanzi.music.app-debug-4:/mipmap-xhdpi_ic_launcher.png.flat",
-        "source": "com.yanzi.music.app-main-6:/mipmap-xhdpi/ic_launcher.png"
+        "merged": "com.example.douyintv.app-debug-11:/layout_activity_white_test.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/layout/activity_white_test.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable_focus_nav_item.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/drawable/focus_nav_item.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/mipmap-hdpi_ic_launcher.png.flat",
+        "source": "com.example.douyintv.app-main-13:/mipmap-hdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable-xhdpi_ic_nav_collect.png.flat",
+        "source": "com.example.douyintv.app-pngs-7:/drawable-xhdpi/ic_nav_collect.png"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable-anydpi-v21_ic_nav_collect.xml.flat",
+        "source": "com.example.douyintv.app-pngs-7:/drawable-anydpi-v21/ic_nav_collect.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/layout_item_video.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/layout/item_video.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/color_text_state.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/color/text_state.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable_btn_chip.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/drawable/btn_chip.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/mipmap-xxxhdpi_ic_launcher_round.png.flat",
+        "source": "com.example.douyintv.app-main-13:/mipmap-xxxhdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable-mdpi_ic_nav_settings.png.flat",
+        "source": "com.example.douyintv.app-pngs-7:/drawable-mdpi/ic_nav_settings.png"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/layout_item_comment.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/layout/item_comment.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/layout_item_category.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/layout/item_category.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable-mdpi_ic_nav_follow.png.flat",
+        "source": "com.example.douyintv.app-pngs-7:/drawable-mdpi/ic_nav_follow.png"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/mipmap-xhdpi_ic_launcher_round.png.flat",
+        "source": "com.example.douyintv.app-main-13:/mipmap-xhdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/layout_activity_main.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/layout/activity_main.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/color_tab_text.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/color/tab_text.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable_card_focus_bg.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/drawable/card_focus_bg.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable-hdpi_ic_nav_login.png.flat",
+        "source": "com.example.douyintv.app-pngs-7:/drawable-hdpi/ic_nav_login.png"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable-anydpi-v21_ic_nav_recommend.xml.flat",
+        "source": "com.example.douyintv.app-pngs-7:/drawable-anydpi-v21/ic_nav_recommend.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/mipmap-xxxhdpi_ic_launcher.png.flat",
+        "source": "com.example.douyintv.app-main-13:/mipmap-xxxhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/mipmap-mdpi_ic_launcher_round.png.flat",
+        "source": "com.example.douyintv.app-main-13:/mipmap-mdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/layout_item_video_card.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/layout/item_video_card.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable-mdpi_ic_nav_recommend.png.flat",
+        "source": "com.example.douyintv.app-pngs-7:/drawable-mdpi/ic_nav_recommend.png"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/mipmap-xhdpi_ic_launcher.png.flat",
+        "source": "com.example.douyintv.app-main-13:/mipmap-xhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable-anydpi-v21_ic_nav_follow.xml.flat",
+        "source": "com.example.douyintv.app-pngs-7:/drawable-anydpi-v21/ic_nav_follow.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable-xhdpi_ic_nav_login.png.flat",
+        "source": "com.example.douyintv.app-pngs-7:/drawable-xhdpi/ic_nav_login.png"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/layout_activity_settings.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/layout/activity_settings.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/mipmap-xxhdpi_ic_launcher_round.png.flat",
+        "source": "com.example.douyintv.app-main-13:/mipmap-xxhdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/layout_dialog_comments.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/layout/dialog_comments.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable_panel_bg.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/drawable/panel_bg.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/layout_activity_search.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/layout/activity_search.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/layout_activity_login.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/layout/activity_login.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable-hdpi_ic_nav_follow.png.flat",
+        "source": "com.example.douyintv.app-pngs-7:/drawable-hdpi/ic_nav_follow.png"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable_cover_error.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/drawable/cover_error.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable-anydpi-v21_ic_nav_settings.xml.flat",
+        "source": "com.example.douyintv.app-pngs-7:/drawable-anydpi-v21/ic_nav_settings.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable_tab_bg.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/drawable/tab_bg.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/mipmap-hdpi_ic_launcher_round.png.flat",
+        "source": "com.example.douyintv.app-main-13:/mipmap-hdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/layout_activity_hot.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/layout/activity_hot.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/layout_item_follow_author.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/layout/item_follow_author.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/layout_item_two_line.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/layout/item_two_line.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/layout_item_search_result.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/layout/item_search_result.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable_placeholder_cover.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/drawable/placeholder_cover.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable_nav_item_bg.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/drawable/nav_item_bg.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable_scrim_bottom.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/drawable/scrim_bottom.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable_focus_ring_fg.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/drawable/focus_ring_fg.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable-anydpi-v21_ic_nav_search.xml.flat",
+        "source": "com.example.douyintv.app-pngs-7:/drawable-anydpi-v21/ic_nav_search.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/xml_file_paths.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/xml/file_paths.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable_about_qr.jpg.flat",
+        "source": "com.example.douyintv.app-main-13:/drawable/about_qr.jpg"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable-hdpi_ic_nav_settings.png.flat",
+        "source": "com.example.douyintv.app-pngs-7:/drawable-hdpi/ic_nav_settings.png"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable_card_bg.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/drawable/card_bg.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable-hdpi_ic_nav_search.png.flat",
+        "source": "com.example.douyintv.app-pngs-7:/drawable-hdpi/ic_nav_search.png"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable-xhdpi_ic_nav_search.png.flat",
+        "source": "com.example.douyintv.app-pngs-7:/drawable-xhdpi/ic_nav_search.png"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable_circle_scrim.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/drawable/circle_scrim.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/color_btn_text.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/color/btn_text.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/layout_item_probe_line.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/layout/item_probe_line.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable_btn_tv_secondary.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/drawable/btn_tv_secondary.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/layout_activity_player.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/layout/activity_player.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable-hdpi_ic_nav_recommend.png.flat",
+        "source": "com.example.douyintv.app-pngs-7:/drawable-hdpi/ic_nav_recommend.png"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/layout_activity_api_probe.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/layout/activity_api_probe.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable-xhdpi_ic_nav_history.png.flat",
+        "source": "com.example.douyintv.app-pngs-7:/drawable-xhdpi/ic_nav_history.png"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable_tv_banner.png.flat",
+        "source": "com.example.douyintv.app-main-13:/drawable/tv_banner.png"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable_btn_tv_primary.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/drawable/btn_tv_primary.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable_tab_item_bg.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/drawable/tab_item_bg.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/mipmap-mdpi_ic_launcher.png.flat",
+        "source": "com.example.douyintv.app-main-13:/mipmap-mdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable-mdpi_ic_nav_search.png.flat",
+        "source": "com.example.douyintv.app-pngs-7:/drawable-mdpi/ic_nav_search.png"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable-xhdpi_ic_nav_settings.png.flat",
+        "source": "com.example.douyintv.app-pngs-7:/drawable-xhdpi/ic_nav_settings.png"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/mipmap-xxhdpi_ic_launcher.png.flat",
+        "source": "com.example.douyintv.app-main-13:/mipmap-xxhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable_focus_chip.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/drawable/focus_chip.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable-hdpi_ic_nav_history.png.flat",
+        "source": "com.example.douyintv.app-pngs-7:/drawable-hdpi/ic_nav_history.png"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable_scrim_top.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/drawable/scrim_top.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable-xhdpi_ic_nav_follow.png.flat",
+        "source": "com.example.douyintv.app-pngs-7:/drawable-xhdpi/ic_nav_follow.png"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/layout_activity_about.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/layout/activity_about.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/layout_activity_list.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/layout/activity_list.xml"
+    },
+    {
+        "merged": "com.example.douyintv.app-debug-11:/drawable_cover_placeholder.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/drawable/cover_placeholder.xml"
     }
 ]

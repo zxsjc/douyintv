@@ -1,69 +1,144 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.yanzi.music"
-    android:versionCode="49"
-    android:versionName="2.0" >
-
+    package="com.example.douyintv"
+    android:versionCode="131"
+    android:versionName="2.31" >
+    <!--
+ ijkplayer-arm64 的 aar 声明 minSdk 21，强制放行：
+         arm64 设备必然 >=21，低版本走 armeabi-v7a
+    -->
+    <!--
+ ijkplayer-arm64 的 aar 声明 minSdk 21，强制放行：
+         arm64 设备必然 >=21，低版本走 armeabi-v7a
+    -->
     <uses-sdk
-        android:minSdkVersion="23"
-        android:targetSdkVersion="34" />
+        android:minSdkVersion="17"
+        android:targetSdkVersion="26" />
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- 前台播放服务（Android 8+ 必须显式声明，否则 startForegroundService 抛 SecurityException） -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!--
-         APP 内更新：下载完成后拉起系统安装器（Android 8+ 需具备该权限，且用户还要在
-         "安装未知应用"里给本应用放行；Updater 会检测并引导）
-    -->
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-
-    <!-- 电视盒子 / Android TV：不强制要求触屏；可在 Leanback 桌面显示 -->
-    <uses-feature
-        android:name="android.software.leanback"
-        android:required="false" />
-    <uses-feature
-        android:name="android.hardware.touchscreen"
-        android:required="false" />
 
     <application
-        android:allowBackup="true"
+        android:name="com.example.douyintv.App"
+        android:allowBackup="false"
+        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
         android:banner="@drawable/tv_banner"
         android:debuggable="true"
-        android:extractNativeLibs="false"
+        android:extractNativeLibs="true"
         android:hardwareAccelerated="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
-        android:supportsRtl="true"
-        android:theme="@style/AppTheme" >
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:theme="@style/AppTheme"
+        android:usesCleartextTraffic="true" >
         <activity
-            android:name="com.yanzi.music.MainActivity"
-            android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|uiMode|navigation|keyboard"
+            android:name="com.example.douyintv.MainActivity"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
             android:exported="true"
-            android:launchMode="singleTask"
-            android:windowSoftInputMode="adjustNothing|stateAlwaysHidden" >
+            android:screenOrientation="sensorLandscape" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
-                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name="com.example.douyintv.SettingsActivity"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape" />
+        <activity
+            android:name="com.example.douyintv.PlayerActivity"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape" />
+
+        <!-- 搜索页：热搜榜 + 关键词检索（独立页，返回键回主界面） -->
+        <activity
+            android:name="com.example.douyintv.SearchActivity"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape" />
+        <activity
+            android:name="com.example.douyintv.HotActivity"
+            android:screenOrientation="landscape" />
+        <activity
+            android:name="com.example.douyintv.LoginActivity"
+            android:screenOrientation="landscape" />
+        <activity
+            android:name="com.example.douyintv.FollowListActivity"
+            android:exported="false" />
+        <activity
+            android:name="com.example.douyintv.AuthorActivity"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape" />
+
+        <!-- 观看历史：纯本地记录，按日期分组（侧边栏「历史」进入） -->
+        <activity
+            android:name="com.example.douyintv.HistoryActivity"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape" />
+
+        <!-- 收藏列表（侧边栏「收藏」进入） -->
+        <activity
+            android:name="com.example.douyintv.CollectActivity"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape" />
+
+        <!--
+             评论改为右侧悬浮小窗（CommentDialogFragment），
+             不再需要独立 Activity —— 跳转会暂停视频，体验差。
+        -->
+
+
+        <!--
+             黑方块来源诊断页：纯白底 + 可选 SurfaceView 合成测试。
+             入口在设置页，不参与正常业务流程。
+        -->
+        <activity
+            android:name="com.example.douyintv.WhiteTestActivity"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape" />
+
+        <!--
+             接口自检页：实测分类/搜索候选接口，结果直接显示在屏幕上。
+             纯诊断用途，入口在设置页。
+        -->
+        <activity
+            android:name="com.example.douyintv.ApiProbeActivity"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape" />
+
+        <!-- 关于页：作者 / 主页二维码 / 签名校验（设置 -> 关于） -->
+        <activity
+            android:name="com.example.douyintv.AboutActivity"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape" />
 
         <service
-            android:name="com.yanzi.music.MusicService"
-            android:exported="false"
-            android:foregroundServiceType="mediaPlayback"
-            android:stopWithTask="false" />
+            android:name="com.example.douyintv.PlayService"
+            android:exported="false" />
 
-        <!-- 更新包授权：只把 cacheDir 下的 .apk 通过 Intent 临时授权给系统安装器 -->
+        <!-- 手机遥控 APK 升级安装：文件 URI 用 FileProvider（targetSdk 26 禁止裸 file://） -->
         <provider
-            android:name="com.yanzi.music.ApkProvider"
-            android:authorities="com.yanzi.music.updater"
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="com.example.douyintv.fileprovider"
             android:exported="false"
-            android:grantUriPermissions="true" />
+            android:grantUriPermissions="true" >
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 
 </manifest>

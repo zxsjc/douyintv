@@ -4,6 +4,26 @@
 > 每版留档：源码备份在 _BACKUP_Dtv_v<版本>，APK 留档在 artifacts/apk/TVDouyinNative/。
 > 版本号规则：十进制小进位（1.99 → 2.00 → 2.01）；versionCode 单调递增（Android 升级判断）。
 
+## 2.31-fix6（本地修复版，未升 versionCode）fix5 回归修复
+
+**背景**：fix5 引入两处回归 —— 默认线路1全部缓冲、换线路2后画面变形。本版回退并改用正确解法。
+
+**① 默认线路1全部视频无法播放（一直缓冲）**
+- 根因：fix5 把裸 `/aweme/v1/play/` 接口地址塞进 `candidateUrls()` 当线路1。播放器（尤其 Exo）请求该接口时带不齐 Cookie/Referer、302 跨域后 headers 丢失 → 拿到风控/登录页 → 一直缓冲。
+- 修复：`candidateUrls()` 回退到 fix3 逻辑，不再把裸 play 接口喂给播放器。该接口只能由 `refreshViaPlayApi`（OkHttp 带完整 headers + Cookie）解析成 CDN 直链后使用。
+
+**② 手动换线路2后很多视频变形**
+- 根因：fix5 把 Exo 分支从 `applyAspect(ratio)`（约束 AspectFrame 容器）改成"交给引擎 SCALE_TO_FIT"；但 Exo 的 SCALE_TO_FIT 只对 TextureView 生效，对本项目 SurfaceView 无效 → 画面被拉伸。同时删掉了极端比例保护。
+- 修复：Exo 分支恢复 AspectFrame 容器约束 + 比例自愈原逻辑；`applySurfaceScale` 恢复极端比例（sx/sy<0.5）放弃缩放保护。
+
+**③ TRIN 作品仍不能播（改用正确解法）**
+- 黑屏看门狗无首帧时优先调用 `refreshUrlAndReplay` → `refreshViaPlayApi`（带 Cookie 请求官方 play 接口拿新鲜 CDN 直链）重播；去重集合用 `bf_` 前缀 key 避免与其它刷新冲突。不再依赖裸地址或盲目换引擎。
+
+**④ 发布日期改为完整「年-月-日」**
+- `formatPublishDate` 由「同年内省略年份」改为始终 `yyyy-MM-dd`（如「发布于 2024-03-15」）。
+
+> 验证：本环境无 Android SDK / kotlinc，无法本地编译；5 个改动 Kotlin 文件括号平衡（词法级）、符号引用、重复声明均已静态校验通过。更新功能本版未改（沿用 fix5），真机验证后如有问题再反馈。
+
 ## 2.31-fix5（本地修复版，未升 versionCode）五项修复
 
 **① 历史/收藏起播慢 —— 直接取「最新连接」**
