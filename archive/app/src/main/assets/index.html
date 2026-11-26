@@ -1,0 +1,3188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#2c3e50">
+    <meta name="format-detection" content="telephone=no">
+    <!-- 内容安全策略：脚本/样式仍为内联（单文件应用，无构建），但把"能往哪发请求"收窄。
+         connect-src 是白名单：任何第三方注入的脚本都无法把数据外发到别的域。
+         media/img 放宽为 https: —— 音频地址由镜像 302 到网易云 CDN，域名不固定，
+         硬列白名单会把播放打断；这两项本来也不是数据外发通道。
+         若某天新增了音源域名，控制台会明确报 CSP 拦截，把域名加进 connect-src 即可。 -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self';
+          script-src 'self' 'unsafe-inline';
+          style-src 'self' 'unsafe-inline';
+          img-src * data: blob:;
+          media-src * blob: data:;
+          connect-src 'self' https://api.qijieya.cn https://api.injahow.cn https://music-api.gdstudio.xyz https://music.163.com https://*.music.126.net;
+          object-src 'none'; base-uri 'none'; form-action 'none'">
+    <title>燕子音乐</title>
+    <link rel="shortcut icon" href="cnm.sb.ico">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { height: 100%; background: #2c3e50; }
+        body {
+            font-family: 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #2c3e50 0%, #4ca1af 100%);
+            /* 固定单屏：整页不再滚动，标题栏 / 搜索行永远可见，歌单只在 .p-list 内部滚动。
+               电视模式原本就是这样，现在 PC 网页与手机 APP 也统一（旧布局靠 .p-fixed 吸顶，
+               一滚动就把头部顶出视口，真机反馈为"头部被隐藏"）。 */
+            height: 100vh;
+            height: 100dvh;
+            min-height: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            /* v1.14：左右内边距归零，让所有区块横向铺满屏幕、消除两侧蓝色竖条。
+               v1.15：底部内边距也归零，白色卡片一直铺到屏幕底边（"底部也铺满"）。
+               原先排在卡片后面的 #status 提示行会占掉约 28px 并露出蓝色渐变带，
+               现已改为不占文档流的底部浮层弹窗（见 .status）。
+               呼吸空间改由 .topbar / .hint 自身的 padding 提供；
+               v1.18 起 .change-wrap 搜索行整行贴边铺满，不再留左右内边距。 */
+            padding: 14px 0 0;
+        }
+        .cover {
+            width: 48px; height: 48px;
+            border-radius: 50%; overflow: hidden;
+            border: 3px solid rgba(255,255,255,.4);
+            box-shadow: 0 4px 14px rgba(0,0,0,.35);
+            background: #fff; flex: 0 0 48px;
+        }
+        .cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .title { font-size: 22px; color: #fff; font-weight: 800; text-align: center;
+                 text-shadow: 0 4px 15px rgba(0,0,0,.4); letter-spacing: 2px; }
+        .topbar {
+            width: 100%; max-width: 900px;
+            display: flex; align-items: center;
+            flex: 0 0 auto; margin-bottom: 10px;
+            padding: 0 14px;   /* body 左右 padding 归零后，由此保证封面/标题不贴屏幕边 */
+        }
+        .topbar > * + * { margin-left:12px; }
+        .topbar .title { margin: 0; }
+        /* v1.18：搜索行「三端全部铺满」—— 去掉 900px 居中限宽，width:100% 即整屏宽度，
+           手机 / PC / 电视三个控件都一路贴到屏幕左右边。
+           v1.16 只让手机铺满、PC/电视还保留 900px 限宽，本次按反馈统一取消。
+           注意：这里只改搜索行；.topbar / .hint 与白色卡片内的 900px 内容列仍保持居中限宽。
+           交叉轴 stretch 让三控件等高，输入框与按钮拼接处不会错开 1~2px。 */
+        .change-wrap {
+            width: 100%; max-width: none;
+            flex: 0 0 auto; margin-bottom: 10px;
+            display: flex; align-items: stretch;
+            padding: 0;
+        }
+        .change-wrap > * + * { margin-left:8px; }
+        /* v1.16「搜索框与搜歌无缝拼接」：去掉两者之间的间距，相接一侧的圆角拉直，
+           白色输入框 + 绿色按钮拼成一个左右带圆角的整体搜索控件（input-group 效果）。
+           ID 选择器特异性高于上面的 .change-wrap > * + *，
+           手机媒体查询里 6px 的间距规则同样被它覆盖，三端都无缝。 */
+        #playlistId + .change-btn { margin-left: 0; }
+        /* 三个控件之间是 8px 间距，却按"无缝拼合"的方式分配圆角（左圆 + 方 + 右圆），
+           中间的直角落在空隙里就成了悬空的方角。各自独立圆角更干净，也不依赖拼接顺序。 */
+        /* v1.13 搜索行重排：榜单名去掉「云音乐」前缀后只剩 3 个字，让出的宽度主要给输入框。
+           v1.16：按反馈把排行榜下拉适当加宽（110→128px / 手机 66→84px），
+           保证「飙升榜 ▾」和占位项「排行榜...」都完整显示、不被挤省略；
+           输入框仍由 flex:1 自动吃满剩余空间，三端共用这一套基准。 */
+        #playlistId { flex: 1; min-width: 0; padding: 8px 10px; border: none; font-size: 14px; outline: none;
+                      border-radius: 0; background: #fff; color: #333; }
+        #boardSel { padding: 8px 8px; border: none; font-size: 14px; outline: none;
+                    border-radius: 8px 0 0 8px; background: #fff; color: #333;
+                    flex: 0 0 128px; min-width: 0; }
+        .change-btn { padding: 8px 14px; border: none; background: linear-gradient(45deg,#4CAF50,#8BC34A);
+                      color: #fff; font-size: 14px; font-weight: bold; cursor: pointer; white-space: nowrap;
+                      border-radius: 0 8px 8px 0; }
+        .hint { width: 100%; max-width: 900px; font-size: 11px; color: rgba(255,255,255,.6);
+                flex: 0 0 auto; margin-bottom: 10px; text-align: center; padding: 0 8px; }
+        /* v1.14 铺满：白色卡片横向贴边（消除两侧蓝色竖条），圆角与外发光随之去掉，
+           否则四角会重新露出蓝色背景。内部内容统一收进 900px 居中列（见下方 .p-fixed > * / .p-list）。 */
+        .player-card {
+            width: 100%; max-width: none;
+            background: #fff; border-radius: 0;
+            box-shadow: none;
+            flex: 1 1 auto; min-height: 0;
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+        /* 卡片 14px 圆角由 .player-card 自己绘制，.p-fixed 是不透明白底又紧贴卡片顶部，
+           会盖掉左右两个上圆角（真机表现为"上面两角是直角、下面两角是圆的"），这里补上部圆角。
+           v1.8：不再用 sticky 吸顶 —— 旧布局整页滚动时 .p-fixed 吸顶会把标题栏 / 搜索行
+           顶出视口（"隐藏头部"）。现在整页固定单屏，.p-fixed 常驻卡片顶部，.p-list 自己滚动。 */
+        .p-fixed { position: static; flex: 0 0 auto; background: #fff; border-radius: 0; }
+        /* v1.14 内容列：白色卡片铺满屏幕，但内部内容收进 900px 居中列，
+           PC / 电视上歌名、歌词、按钮、歌单不会被拉散；手机 390px 下 900 上限不生效，等于纯铺满。
+           用 margin:auto 而非 align-items，避免影响 flex 列的高度分配与电视 layoutTvList。 */
+        .p-fixed > *, .p-list { width: 100%; max-width: 900px; margin-left: auto; margin-right: auto; }
+        .p-main { display: flex; align-items: center; padding: 14px; background: #fff; }
+        .p-pic { width: 90px; height: 90px; border-radius: 50%; overflow: hidden;
+                 background: #eee url('11.jpg') center/cover; flex: 0 0 90px; margin-right: 14px;
+                 box-shadow: 0 4px 12px rgba(0,0,0,.2);
+                 border: 3px solid #fff; position: relative; }
+        .p-pic img { width: 100%; height: 100%; object-fit: cover; display: block;
+                     border-radius: 50%; }
+        .p-pic.playing { animation: spin 8s linear infinite; }
+        .p-pic.paused { animation: none; }
+        /* 所有封面地址都取不到时的占位：给一个音符底色，而不是让圆形区域空成灰洞 */
+        .p-pic.no-cover { background: linear-gradient(135deg,#eef3ef,#dbe7de); }
+        .p-pic.no-cover::after { content: '♪'; position: absolute; inset: 0; display: flex;
+                                 align-items: center; justify-content: center;
+                                 color: #9fb3a6; font-size: 30px; line-height: 1; }
+        body.tv .p-pic.no-cover::after { font-size: 20px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .p-info { flex: 1; min-width: 0; }
+        .p-name { font-size: 16px; font-weight: 700; color: #222; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .p-artist { font-size: 13px; color: #888; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        /* 歌词窗口高度恒定：超长句只在容器内部滚动 / 由 JS 自动缩字号，绝不把容器撑高。
+           旧实现按句子高度动态改 max-height，每帧重排会让下方控制区与歌单反复跳动（"闪"），
+           句子极长时还会把整块 .p-fixed 顶出卡片（"撑破容器"）。
+           v1.11：height 取「行盒 24px 的整数倍 + 1px 上边框」，让 clientHeight 恰为 24 的整数倍；
+           配合 JS 把 scrollTop 吸附到行顶，容器上下边缘都落在行与行之间的空隙，
+           汉字不会被横向裁成上下两半。v1.12 手机窗口调大到 5 行后，三端对应 6 / 5 / 5 行。 */
+        .p-lrc { position: relative; background: linear-gradient(180deg,#f7f7f9,#f0f4f0); padding: 6px 14px;
+                 height: 145px; min-height: 0; max-height: none;
+                 overflow-y: auto; overscroll-behavior: contain;
+                 text-align: center; border-top: 1px solid #eee;
+                 /* 上下 12px 渐隐：极端长句换行、边缘仍压到字时，被裁的半截汉字会淡出，
+                    不会出现生硬的「上下两半」。mask 相对容器固定、不随内容滚动；
+                    老 WebView 不支持时自动退化为无渐隐，其余修复仍生效。 */
+                 -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
+                 mask-image: linear-gradient(180deg, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%); }
+        /* 只分两种字号：非当前句 12px、当前句 14px（稍大）。near / far 只改颜色与透明度。
+           行高固定 20px + 上下各 2px padding = 24px 整数行盒：旧的 1.45 倍数会算出
+           18.85 / 23.2px 小数行高，滚动裁剪线落在汉字中间，出现「上下两半」。
+           字号缩小不改变行盒高度，整数倍对齐机制（v1.11 防切字）保持成立。 */
+        .lrc-line { color: #b8b8b8; font-size: 12px; line-height: 20px; padding: 2px 0; transition: color .4s, opacity .4s, font-size .4s;
+                    white-space: normal; word-break: break-word; }
+        .lrc-line.cur { color: #2e7d32; font-size: 14px; font-weight: 700; line-height: 20px;
+                        text-shadow: 0 2px 12px rgba(46,125,50,.25);
+                        opacity: 1; }
+        .lrc-line.near { color: #999; opacity: .75; }
+        .lrc-line.far { color: #ccc; opacity: .45; }
+        .lrc-ctrl {
+            display: flex; align-items: center; justify-content: center; flex-wrap: wrap;
+            padding: 4px 14px; background: #fafafa; border-top: 1px solid #eee;
+            font-size: 12px; color: #999;
+        }
+        .lrc-btn {
+            width: 26px; height: 26px; border: none; border-radius: 50%;
+            background: #e8f5e9; color: #2e7d32; font-size: 14px; font-weight: 700;
+            cursor: pointer; margin: 0 4px; outline: none; line-height: 1;
+        }
+        .lrc-btn:hover { background: #4CAF50; color: #fff; }
+        .lrc-btn.wide { width: auto; padding: 0 8px; border-radius: 12px; font-size: 11px; white-space: nowrap; }
+        .lrc-off { min-width: 56px; text-align: center; color: #4CAF50; font-weight: 700; }
+        .lrc-tip { margin-left: 8px; color: #bbb; }
+        .p-ctrl { padding: 0 14px 14px; }
+        /* v1.9.1：列表上方的「# / 歌名 / 歌手」表头已按需求删除，
+           连带移除为它做滚动条对齐的 syncListGutter()（已无对齐对象）。
+           .p-list 顶部 10px 内边距仍保留，用于给置顶行的焦点框留白。 */
+        .p-progress {
+            display: flex; align-items: center; font-size: 12px; color: #999;
+            margin-bottom: 6px;
+        }
+        .p-progress > * + * { margin-left:10px; }
+        .p-bar { flex: 1; height: 5px; background: #e5e5e5; border-radius: 3px; cursor: pointer; position: relative; }
+        /* 命中区扩展：进度条本体只有 5px 高，手指/遥控器都难以点中。
+           用伪元素上下各撑 9px，视觉不变、可点区域变 23px。 */
+        .p-bar::before { content: ''; position: absolute; left: 0; right: 0; top: -9px; bottom: -9px; }
+        .p-bar-played { height: 100%; background: linear-gradient(45deg,#4CAF50,#8BC34A); border-radius: 3px; width: 0; }
+        .p-btns {
+            display: flex; align-items: center;
+        }
+        .p-btns > * + * { margin-left:6px; }
+        .p-btn { width: 38px; height: 38px; border: none; border-radius: 50%; background: #f0f0f0;
+                 color: #333; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+                 transition: background .2s; outline: none; padding: 0; }
+        .p-btn:hover { background: #4CAF50; color: #fff; }
+        .p-btn.play { width: 46px; height: 46px; background: linear-gradient(45deg,#4CAF50,#8BC34A); color: #fff; font-size: 18px; }
+        .p-btn.vol { font-size: 14px; }
+        /* ===== 图标：内联 SVG，不用 emoji =====
+           原来用 ⏮⏸▶⏭🔊🔁🔂🎲☰ 这些字符，依赖系统 emoji 字体。精简电视盒子/定制 ROM 上
+           没有彩色 emoji 字体，渲染成空方框（实测 🔁 就是一个豆腐块），中远距离完全看不出功能。
+           SVG 用 currentColor 跟随按钮文字色，尺寸固定，任何设备一致。
+           多图标共用一个按钮时用状态类切换，避免 JS 到处改 innerHTML。 */
+        .p-btn .ico { width: 20px; height: 20px; display: block; fill: currentColor; }
+        .p-btn.play .ico { width: 24px; height: 24px; }
+        .p-btn .ico-pause, .p-btn .ico-vol-off { display: none; }
+        .p-btn.is-playing .ico-play { display: none; }
+        .p-btn.is-playing .ico-pause { display: block; }
+        .p-btn.is-muted .ico-vol-on { display: none; }
+        .p-btn.is-muted .ico-vol-off { display: block; }
+        .mode-btn .ico { display: none; }
+        .mode-btn[data-mode="0"] .ico-repeat-all { display: block; }
+        .mode-btn[data-mode="1"] .ico-repeat-one { display: block; }
+        .mode-btn[data-mode="2"] .ico-shuffle { display: block; }
+        .p-spacer { flex: 1; }
+        .p-list { flex: 1 1 auto; min-height: 90px; max-height: none;
+                  overflow-y: auto; overscroll-behavior: contain; border-top: 1px solid #eee;
+                  padding: 10px 6px 6px; }   /* 顶部留 10px：置顶行的 outline(2px)+offset(2px) 不会被裁 */
+        .p-list .li { display: flex; align-items: center; padding: 9px 14px; cursor: pointer;
+                      border-bottom: 1px solid #f5f5f5; transition: background .15s; outline: none; }
+        .p-list .li:hover { background: #f5faf5; }
+        .p-list .li.cur { background: #e8f5e9; }
+        .p-list .li .idx { width: 34px; color: #bbb; font-size: 12px; flex: 0 0 34px; }
+        .p-list .li.cur .idx { color: #4CAF50; font-weight: 700; }
+        .p-list .li .nm { flex: 1; min-width: 0; font-size: 14px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .p-list .li.cur .nm { color: #2e7d32; font-weight: 700; }
+        .p-list .li .ar { width: 90px; flex: 0 0 90px; text-align: right; font-size: 12px; color: #999; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        /* 列表显示/隐藏：折叠时连表头一起收起，卡片收缩到内容高度（不留半截白底）。
+           标题栏 / 搜索行属于 body 直接子元素，始终常驻，不受折叠影响。
+           用 body 上的类统一控制，避免内联样式与电视模式 layoutTvList 的固定高度互相打架。 */
+        body.list-hidden .p-list { display: none; }
+        /* body.tv .player-card 在后面用同样的特异性写了 flex:1 1 auto，
+           必须再加一条更高特异性的规则，否则电视上折叠后卡片仍撑满整屏。 */
+        body.list-hidden .player-card,
+        body.tv.list-hidden .player-card { flex: 0 1 auto; }
+        body.list-hidden .p-fixed { border-radius: 0; }
+        .list-btn { flex: 0 0 auto; }
+        body.list-hidden .list-btn { background: #e8f5e9; color: #2e7d32; }
+        /* ===== v1.15 底部提示弹窗 =====
+           原来 #status / #errorCard 是 body 文档流里排在卡片后面的两行：即使没有提示，
+           #status 的 min-height:20px + margin-top:8px 也会占掉约 28px，加上 body 底部
+           padding 12px，就在白色卡片下方留出一条蓝色渐变带 —— 截图里"底部没铺满"就是它。
+           现在两者统一改成固定在屏幕底部的浮层弹窗：position:fixed 不占布局高度，
+           卡片得以一直铺到屏幕底边。提示由 .show 类弹出（上滑 + 淡入），6 秒后自动收起。
+           pointer-events:none 保证弹窗不挡列表点击、不抢遥控器焦点；
+           z-index 1200 高于换词弹层的 999，弹层打开时的提示也能看见；
+           bottom 额外加 env(safe-area-inset-bottom) 避开全面屏手势条，老 WebView
+           不认识该值时自动回退到上一行 bottom:16px。 */
+        .status {
+            position: fixed; left: 50%; bottom: 16px;
+            bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+            transform: translate(-50%, 14px);
+            width: calc(100% - 32px); max-width: 520px;
+            min-height: 0; margin: 0; padding: 11px 18px;
+            border-radius: 14px;
+            background: rgba(28, 40, 46, .94); color: #fff;
+            font-size: 13px; line-height: 1.55; text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,.32);
+            z-index: 1200; pointer-events: none;
+            opacity: 0; visibility: hidden;
+            transition: opacity .22s ease, transform .22s ease, visibility .22s;
+        }
+        .status.show { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
+        /* 错误提示复用同一个弹窗，只换红底：两个浮层叠在同一位置会互相遮挡 */
+        .status.err { background: rgba(150, 38, 38, .96); }
+
+        .picker-mask {
+            position: fixed; left: 0; top: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,.55); display: none; z-index: 999;
+            align-items: center; justify-content: center; padding: 20px;
+        }
+        .picker-mask.show { display: flex; }
+        .picker-box {
+            width: 100%; max-width: 460px; max-height: 70vh;
+            background: #fff; border-radius: 12px; overflow: hidden;
+            display: flex; flex-direction: column;
+            box-shadow: 0 20px 50px rgba(0,0,0,.5);
+        }
+        .picker-head {
+            padding: 12px 16px; font-size: 15px; font-weight: 700; color: #2e7d32;
+            border-bottom: 1px solid #eee; display: flex; align-items: center; justify-content: space-between;
+        }
+        .picker-close {
+            border: none; background: transparent; font-size: 20px; color: #999;
+            cursor: pointer; width: 30px; height: 30px; border-radius: 50%; outline: none;
+        }
+        .picker-close:hover { background: #f0f0f0; color: #333; }
+        /* v1.7.8：滚动容器必须留内边距，否则行是满宽的、焦点框（outline 2px + 2px 间隙）
+           在容器左右边缘会被 overflow 裁掉，真机表现就是"框线只有上下两条、左右缺失"。
+           6px 内边距足够容纳 4px 的外扩，框线四边都能完整显示。 */
+        .picker-list { overflow-y: auto; flex: 1; padding: 6px; }
+        .picker-item {
+            padding: 10px 16px; border-bottom: 1px solid #f5f5f5; cursor: pointer;
+            outline: none;
+        }
+        .picker-item:hover { background: #e8f5e9; }
+        .picker-item .pn { font-size: 14px; color: #222; font-weight: 600;
+                            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        /* 换词候选的序号：固定宽度，序号与歌名视觉分离，长歌名仍走 ellipsis */
+        .picker-item .pno { display: inline-block; min-width: 24px; color: #4CAF50; font-weight: 700; }
+        .picker-item .pt { color: #222; }
+        .picker-item .pa { font-size: 12px; color: #888; margin-top: 2px;
+                            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .picker-foot { padding: 10px 16px; border-top: 1px solid #eee; text-align: center; }
+        .picker-foot button {
+            padding: 6px 14px; border: none; border-radius: 8px; font-size: 13px;
+            background: #f0f0f0; color: #333; cursor: pointer; margin: 0 4px; outline: none;
+        }
+        .picker-foot button.primary { background: linear-gradient(45deg,#4CAF50,#8BC34A); color: #fff; }
+        .picker-foot button:hover { opacity: .9; }
+        /* 弹窗内的"输入歌曲ID"模式：替代原生 prompt()。
+           prompt() 需要宿主实现 WebChromeClient.onJsPrompt()，没实现的壳里直接返回 null，
+           功能静默失效；电视上更是连输入法都调不出来。 */
+        .picker-body { padding: 14px 16px; flex: 1; overflow-y: auto; }
+        .picker-body .pb-tip { font-size: 12px; color: #888; line-height: 1.7; margin-bottom: 10px; }
+        .picker-body input {
+            width: 100%; padding: 10px 12px; font-size: 15px; border: 1px solid #ddd;
+            border-radius: 8px; outline: none; color: #333; background: #fff;
+        }
+        .picker-body input:focus { border-color: #4CAF50; box-shadow: 0 0 0 3px rgba(76,175,80,.18); }
+
+        @media (max-width:600px){
+            /* v1.18：铺满（max-width:none / padding:0）与两端直角已上移到基准、三端统一，
+               这里只保留窄屏专属差异：间距 8→6px、按钮内边距与字号各减一档、下拉 128→84px。
+               输入框与「搜歌」仍无缝拼接，排行榜与它们之间保留 6px 间距。 */
+            .change-wrap > * + * { margin-left: 6px; }
+            #playlistId { flex: 1 1 auto; min-width: 0; padding: 8px 9px; }
+            #boardSel { flex: 0 0 84px; min-width: 0; font-size: 12px; padding: 8px 3px; }
+            .change-btn { padding: 8px 8px; font-size: 12px; flex: 0 0 auto; }
+            .lrc-tip { display: none; }
+            /* 手机 APP 歌词窗口稍微调大：121px = 5×24 行盒 + 1px 上边框，显示 5 行
+               （比 v1.11 的 4 行多一行）。仍取行盒整数倍，clientHeight=120 恰为 5×24，
+               上下边缘依旧落在行间隙，不会把汉字切成两半；高度恒定，不随内容变化。 */
+            .p-lrc { height: 121px; }
+            .p-list .li .ar { width: 60px; flex-basis: 60px; font-size: 11px; }
+            .p-list .li .idx { width: 32px; flex-basis: 32px; }
+        }
+        /* 极矮视口（手机横屏 / PC 小窗口）：固定单屏会把歌单压没，退回整页滚动。
+           电视模式由 body.tv / body.tv .p-list 的高优先级规则覆盖，不受影响。 */
+        @media (max-height: 620px){
+            body { height: auto; min-height: 100vh; overflow: auto; }
+            .player-card { flex: 0 0 auto; }
+            .p-list { flex: 0 0 auto; min-height: 0; max-height: 260px; }
+        }
+
+        /* ===== 焦点框线：非电视端（手机 APP + PC 网页）一律不显示；电视端只认 .tv-focus 类 ===== */
+        /* v1.17 曾给桌面键盘导航留一条 @media (hover:hover)(pointer:fine) + :focus-visible
+           琥珀黄辅助框，但 Chromium 对 <input type=text> / <select> 的 :focus-visible 判定
+           与「是否键盘操作」无关 —— 鼠标点击搜索框、排行榜同样命中，于是 PC 网页端点这两个
+           控件仍会出现焦点框线（用户第二次反馈）。v1.19 彻底移除该媒体查询：
+           非电视端任何聚焦方式（鼠标点击 / Tab / WebView 自动聚焦）都不画 outline。
+           刻意拆成两条独立规则：老 WebView 不认识 :focus-visible 时只会丢弃第二条，
+           第一条仍生效（写在同一条选择器列表里会整条作废）。
+           !important 用于压过部分 WebView 把 UA 焦点环写进作者层的情况；
+           body:not(.tv) 限定保证电视端 .tv-focus 的琥珀黄遥控器焦点环不受影响。 */
+        body:not(.tv) *:focus { outline: none !important; }
+        body:not(.tv) *:focus-visible { outline: none !important; }
+        /* 电视模式：真实焦点一律不画框（含 WebView 自动聚焦的输入框），框线只认 .tv-focus 类 */
+        body.tv button:focus, body.tv #playlistId:focus, body.tv #boardSel:focus,
+        body.tv #lrcIdInput:focus,
+        body.tv .li:focus, body.tv .picker-item:focus, body.tv .change-btn:focus,
+        body.tv #bar:focus, body.tv .lrc-btn:focus {
+            outline: none;
+        }
+        /* 防御：电视模式下歌词显示文本区即便被原生焦点偶然触及，也不显示焦点环；工具栏按钮仍可聚焦 */
+        body.tv .p-lrc:focus, body.tv .p-lrc *:focus {
+            outline: none;
+        }
+
+        /* 电视 / 盒子固定单屏布局：整页禁止滚动，固定控制区压缩，歌单高度由 JS 按视口精确分配 */
+        body.tv {
+            position: fixed; left: 0; top: 0; right: 0; bottom: 0;
+            height: 100%;
+            background: linear-gradient(135deg, #2c3e50 0%, #4ca1af 100%);
+            overflow: hidden;
+            padding: 8px 0 0;   /* v1.15 底部归零：白色卡片铺到屏幕底边，不再留蓝色带 */
+        }
+        body.tv .topbar { height: 44px; margin-bottom: 6px; flex: 0 0 44px; }
+        body.tv .topbar .cover { width: 44px; height: 44px; flex: 0 0 44px; border-width: 2px; }
+        body.tv .title { font-size: 24px; }
+        body.tv .change-wrap { height: 44px; margin-bottom: 6px; flex: 0 0 44px; }
+        body.tv .hint { display: none; }
+        body.tv #playlistId, body.tv #boardSel, body.tv .change-btn {
+            font-size: 15px; padding: 8px 12px; height: 44px;
+        }
+        body.tv .player-card {
+            flex: 1 1 auto;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        body.tv .p-fixed { position: static; flex: 0 0 auto; min-height: 0; }
+        body.tv .p-main { padding: 6px 12px; }
+        body.tv .p-pic { width: 54px; height: 54px; flex: 0 0 54px; margin-right: 10px; }
+        /* 三端统一恒定高度：短句留白、长句内部滚动，切句时歌词容器以下绝不跳动。
+           电视卡片由 JS 按视口分配固定高度；121px = 5×24 行盒 + 1px 上边框，边缘不切字。 */
+        body.tv .p-lrc { height: 121px; min-height: 0; max-height: none; padding: 5px 12px; }
+        /* 字号与行高跟随全局两档规则（非当前 12px / 当前 14px、行高固定 20px），电视端不再另设一套 */
+        body.tv .lrc-ctrl { flex-wrap: nowrap; justify-content: center; padding: 2px 10px; }   /* 不用 flex gap：Chrome<84 不生效，按钮自身 margin 已足够 */
+        body.tv .p-ctrl { padding: 0 12px 6px; }
+        body.tv .p-progress { margin-bottom: 4px; }
+        body.tv .p-btn { width: 44px; height: 44px; font-size: 16px; }
+        body.tv .p-btn.play { width: 52px; height: 52px; font-size: 20px; }
+        body.tv .lrc-btn { width: 32px; height: 32px; font-size: 15px; margin: 0 3px; }
+        /* v1.7.8：必须显式写 width:auto。body.tv .lrc-btn 的 width:32px 优先级 (0,2,1)
+           高于 .lrc-btn.wide 的 width:auto (0,2,0)，导致"换词/下载"被压成 32px 宽，
+           而 padding:0 10px 又占掉 20px，文字只剩 12px 可用 → 文字从右侧溢出，
+           视觉上就是"文字在框线里偏右、不居中"。 */
+        body.tv .lrc-btn.wide { width: auto; min-width: 46px; height: 32px; font-size: 11px; padding: 0 10px; border-radius: 14px; }
+        body.tv .lrc-off { min-width: 48px; margin: 0 2px; }
+        body.tv .p-name { font-size: 16px; }
+        body.tv .p-artist { font-size: 13px; }
+        body.tv .p-list {
+            flex: 1 1 auto;
+            min-height: 120px;
+            max-height: none;
+            overflow-y: auto;
+        }
+        /* v1.15 电视端提示弹窗：盒子有过扫描(overscan)，底边上移 + 字号放大，
+           保证远距离能看清提示且不会被屏幕边缘裁掉 */
+        body.tv .status {
+            bottom: 34px; bottom: calc(34px + env(safe-area-inset-bottom, 0px));
+            max-width: 760px; font-size: 17px; padding: 14px 26px;
+        }
+        body.tv .p-list .li { padding: 9px 16px; }
+        body.tv .p-list .li .idx { width: 52px; flex: 0 0 52px; font-size: 14px; }
+        body.tv .p-list .li .nm { font-size: 16px; }
+        body.tv .p-list .li .ar { font-size: 13px; }
+        body.tv .picker-item { padding: 14px 18px; }
+        body.tv .picker-item .pn { font-size: 16px; }
+        body.tv .picker-item .pa { font-size: 13px; }
+        body.tv .picker-foot button { padding: 10px 20px; font-size: 14px; }
+
+        /* ===== 电视焦点环：全站统一琥珀黄 #FFB300 =====
+           页面主体是绿色渐变、主要按钮也是绿色，焦点环若用绿色会和控件本身糊在一起
+           （v1.7 搜歌按钮"看不见焦点"就是这个原因）。统一换成琥珀黄：
+           在深绿底、白底输入框、绿色按钮上都有明显色差，中远距离也一眼可辨。
+           注意：这里刻意不使用 CSS 变量 var()，部分电视盒子 WebView 版本较老不支持。 */
+        /* v1.7.4：只保留一条细外框线 —— 所有控件完全相同
+           （outline 2px 琥珀黄 + 2px 间隙）。不加 border（否则变双框）、
+           不加外发光（视觉上像一圈背景色）、不声明 background（保持控件自身底色不变）。 */
+        /* v1.7.7：加 !important 修复"搜歌 / 换词 / 下载按钮有焦点但看不到框"。
+           原因：上方 body.tv .lrc-btn:focus / body.tv .change-btn:focus { outline:none }
+           的优先级 (0,3,1) 高于 button.tv-focus 的 (0,2,1)，遥控器真实 focus 过的按钮
+           两个状态同时存在，outline:none 把焦点框吃掉了（OK 键走 JS focusEl 不受影响，
+           所以表现为"功能正常但没框"）。!important 一劳永逸压过所有 outline:none。 */
+        body.tv .tv-focus,
+        body.tv button.tv-focus,
+        body.tv .li.tv-focus,
+        body.tv .picker-item.tv-focus,
+        body.tv #playlistId.tv-focus,
+        body.tv #boardSel.tv-focus,
+        body.tv #lrcIdInput.tv-focus,
+        body.tv #bar.tv-focus {
+            outline: 2px solid #FFB300 !important;
+            outline-offset: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <div class="cover"><img src="11.jpg" alt="燕子音乐"></div>
+        <div class="title">燕子音乐</div>
+    </div>
+    <div class="change-wrap">
+        <input id="playlistId" type="text" inputmode="text" placeholder="歌名/歌手/歌单ID或链接"
+               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+               enterkeyhint="search">
+        <button class="change-btn" id="searchBtn">搜歌</button>
+
+        <select id="boardSel">
+            <option value="">排行榜...</option>
+            <option value="19723756">飙升榜</option>
+            <option value="3779629">新歌榜</option>
+            <option value="3778678">热歌榜</option>
+            <option value="2884035">原创榜</option>
+        </select>
+
+    </div>
+
+    <div class="player-card" id="playerCard">
+        <div class="p-fixed">
+        <div class="p-main">
+            <div class="p-pic" id="pic"><img src="" alt="" decoding="async"></div>
+            <div class="p-info">
+                <div class="p-name" id="songName">点击播放键开始</div>
+                <div class="p-artist" id="songArtist">加载中...</div>
+            </div>
+        </div>
+        <div class="p-lrc" id="lrcBox"></div>
+        <div class="lrc-ctrl">
+            <button class="lrc-btn" data-action="offset-back" title="歌词延后 0.1s" aria-label="歌词延后0.1秒">−</button>
+            <span class="lrc-off" id="lrcOff">+0.18s</span>
+            <button class="lrc-btn" data-action="offset-fwd" title="歌词提前 0.1s" aria-label="歌词提前0.1秒">+</button>
+            <button class="lrc-btn wide" data-action="change-lrc" title="歌词配错了？换一个源">换词</button>
+            <button class="lrc-btn wide" data-action="download" title="下载当前播放歌曲（VIP/付费歌只能下载到30秒试听版）">下载</button>
+        </div>
+        <div class="p-ctrl">
+            <div class="p-progress">
+                <span id="curTime">00:00</span>
+                <div class="p-bar" id="bar" tabindex="0" role="slider"
+                     aria-label="播放进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"
+                     title="点按或拖动调整播放进度，遥控器左右键微调进度"><div class="p-bar-played" id="barPlayed"></div></div>
+                <span id="totalTime">00:00</span>
+            </div>
+            <div class="p-btns">
+                <button class="p-btn" data-action="prev" title="上一首" aria-label="上一首">
+                    <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
+                </button>
+                <button class="p-btn play" id="playBtn" data-action="toggle" title="播放/暂停" aria-label="播放或暂停">
+                    <svg class="ico ico-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                    <svg class="ico ico-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>
+                </button>
+                <button class="p-btn" data-action="next" title="下一首" aria-label="下一首">
+                    <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg>
+                </button>
+                <button class="p-btn vol" id="volBtn" data-action="mute" title="静音/取消静音" aria-label="静音或取消静音">
+                    <svg class="ico ico-vol-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05A4.47 4.47 0 0 0 16.5 12zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+                    <svg class="ico ico-vol-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M16.5 12A4.5 4.5 0 0 0 14 7.97v2.21l2.45 2.45c.03-.2.05-.41.05-.63zM19 12c0 .94-.2 1.82-.54 2.64l1.51 1.51A8.8 8.8 0 0 0 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3 3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06a8.99 8.99 0 0 0 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4 9.91 6.09 12 8.18V4z"/></svg>
+                </button>
+                <button class="p-btn mode mode-btn" id="modeBtn" data-action="mode" data-mode="0" title="列表循环" aria-label="切换播放模式">
+                    <svg class="ico ico-repeat-all" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
+                    <svg class="ico ico-repeat-one" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4zm-3-3v-1h-1v-4h-1v1h-1v1h1v2h-1v1h3z"/></svg>
+                    <svg class="ico ico-shuffle" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.59 9.17 5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
+                </button>
+                <div class="p-spacer"></div>
+                <button class="p-btn list-btn" id="listBtn" data-action="list"
+                        title="隐藏歌曲列表" aria-label="显示或隐藏歌曲列表"
+                        aria-controls="listBox" aria-expanded="true">
+                    <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+                </button>
+            </div>
+        </div>
+        </div>
+        <div class="p-list" id="listBox"></div>
+    </div>
+    <!-- v1.15：错误提示已并入 #status 同一个底部弹窗，原 #errorCard 行删除（它曾占布局高度） -->
+    <div id="status" class="status" role="status" aria-live="polite"></div>
+
+    <div class="picker-mask" id="pickerMask">
+        <div class="picker-box">
+            <div class="picker-head">
+                <span id="pickerHeadTitle">选择正确的歌词版本</span>
+                <button class="picker-close" data-action="close-picker" title="关闭" aria-label="关闭">×</button>
+            </div>
+            <div class="picker-list" id="pickerList"></div>
+            <!-- 手动输入歌曲ID：替代 prompt()。放在同一弹层里，焦点系统、输入法收放都复用现成逻辑。 -->
+            <div class="picker-body" id="pickerBody" style="display:none">
+                <div class="pb-tip">粘贴网易云歌曲分享链接，或直接填 id= 后面的数字。<br>
+                    换词后会自动记住这个版本，下次播放同一首歌自动套用。</div>
+                <input id="lrcIdInput" type="text" inputmode="numeric" placeholder="例如 1357374736"
+                       autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            </div>
+            <div class="picker-foot" id="pickerFoot">
+                <button data-action="manual-lrc" id="btnManualLrc">手动输入歌曲ID</button>
+                <button class="primary" data-action="submit-lrc" id="btnSubmitLrc" style="display:none">确定</button>
+                <button class="primary" data-action="close-picker">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        var audio = new Audio();
+        audio.preload = 'auto';
+        /* 启动「响一下就停」的常见诱因之一：new Audio() 创建的是游离元素，部分 Android
+           WebView / 电视盒子会在页面布局完成后回收它。挂进 DOM 可稳定持有播放实例。
+           零尺寸 + 透明，不用 display:none（有内核会暂停不可见媒体元素）。 */
+        audio.setAttribute('playsinline', '');
+        audio.setAttribute('webkit-playsinline', '');
+        audio.style.cssText = 'position:absolute;left:0;top:0;width:0;height:0;opacity:0;pointer-events:none;';
+        (document.body || document.documentElement).appendChild(audio);
+        var songList = [];
+        var curIndex = 0;
+        var muted = false;
+        var lrcLines = [];
+        var lrcEls = [];
+        var lastLrcIdx = -1;
+        var listHidden = false;      // 播放列表折叠状态：默认展开，由「列表」按钮切换
+        var LRC_BASE_OFFSET = 0.18;
+        var LRC_OFFSET_STEP = 0.1;
+        var songOffsets = {};
+        var playMode = 0;
+        var modeLabels = ['列表循环', '单曲循环', '随机播放'];
+        var oneShotStatus = false;
+        // 启动默认播放的推荐好歌（时长>60秒、可播放完整版、带官方封面）
+        var DEFAULT_START = { id: '1357374736', name: '海阔天空', artist: 'Beyond',
+                              pic: 'https://p1.music.126.net/qnQ93WnZHACVvIM14c4sAQ==/109951163984007061.jpg' };
+
+        /* ===== 音源注册表 =====
+           qj  qijieya（主源，Meting 风格）：url 直接 302 到音频流，lrc 直接返回 LRC 文本
+           ij  injahow 镜像（Meting 风格，同样 302 直链 / LRC 文本；不支持 search，只支持 playlist）
+           gd  gdstudio 直链（参数名是 types 复数）：url / lyric / pic 全部返回 JSON，需要二次解析
+           播放地址按 qj → ij → gd 顺序自动回退；歌词、封面同样有回退链。 */
+        var SRC = {
+            qj: {
+                label: 'qijieya',
+                url:      function(id){ return 'https://api.qijieya.cn/meting/?server=netease&type=url&id=' + id; },
+                lrc:      function(id){ return 'https://api.qijieya.cn/meting/?server=netease&type=lrc&id=' + id; },
+                pic:      function(id){ return 'https://api.qijieya.cn/meting/?server=netease&type=pic&id=' + id; },
+                playlist: function(id){ return 'https://api.qijieya.cn/meting/?server=netease&type=playlist&id=' + id; },
+                search:   function(kw){ return 'https://api.qijieya.cn/meting/?server=netease&type=search&id=' + encodeURIComponent(kw) + '&limit=100'; }
+            },
+            ij: {
+                label: 'injahow 镜像',
+                url:      function(id){ return 'https://api.injahow.cn/meting/?type=url&id=' + id; },
+                lrc:      function(id){ return 'https://api.injahow.cn/meting/?type=lrc&id=' + id; },
+                pic:      function(id){ return 'https://api.injahow.cn/meting/?type=pic&id=' + id; },
+                playlist: function(id){ return 'https://api.injahow.cn/meting/?type=playlist&id=' + id; },
+                search:   null   // 该镜像 search 返回 {"error":"unknown type"}，不参与搜索
+            },
+            gd: {
+                label: 'gdstudio 直链',
+                url:      function(id){ return 'https://music-api.gdstudio.xyz/api.php?types=url&source=netease&id=' + id + '&br=320'; },
+                lrc:      function(id){ return 'https://music-api.gdstudio.xyz/api.php?types=lyric&source=netease&id=' + id; },
+                pic:      function(id){ return 'https://music-api.gdstudio.xyz/api.php?types=pic&source=netease&id=' + id; },
+                playlist: null,
+                search:   function(kw){ return 'https://music-api.gdstudio.xyz/api.php?types=search&source=netease&name=' + encodeURIComponent(kw) + '&count=99&pages=1'; }
+            }
+        };
+        /** 当前实际生效的播放音源名，仅用于状态提示 */
+        var curSrcLabel = SRC.qj.label;
+
+        /* ===== 图标状态（SVG + class 切换，不再改 textContent） ===== */
+        function setPlayIcon(playing){ $('playBtn').classList.toggle('is-playing', !!playing); }
+        function setMuteIcon(m){ $('volBtn').classList.toggle('is-muted', !!m); }
+        function setModeIcon(m){ $('modeBtn').setAttribute('data-mode', String(m)); }
+        /** 切 .p-pic 的播放态。必须保留 no-cover —— 直接赋 className 会把"无封面"占位一起冲掉，
+            图片已 display:none 时就会露出底下的灰洞。 */
+        function setPicState(st){
+            var box = $('pic');
+            var nc = box.classList.contains('no-cover');
+            box.className = 'p-pic' + (st ? ' ' + st : '') + (nc ? ' no-cover' : '');
+        }
+
+        /* ===== 音源健康度：记住哪个源最近可用，下次优先试它 =====
+           三个镜像都没有 SLA，主源经常挂。旧逻辑每次都从 qj 开始，
+           主源挂掉时用户每次都白等一次超时才切到镜像。这里按"最近是否成功 + 连续失败次数"排序，
+           让上一次好用的源排到最前；连续失败会把它压到后面，自动恢复时又会重新排上来。
+           数据存 localStorage，跨启动有效；只存 3 个 key，不会无限增长。 */
+        var srcStat = {};
+        function loadSrcStat(){
+            try{ srcStat = JSON.parse(localStorage.getItem('srcStat') || '{}') || {}; }catch(e){ srcStat = {}; }
+        }
+        function saveSrcStat(){
+            try{ localStorage.setItem('srcStat', JSON.stringify(srcStat)); }catch(e){}
+        }
+        function noteSrc(key, ok){
+            if(!key) return;
+            var s = srcStat[key] || (srcStat[key] = { ok: 0, fail: 0, ts: 0 });
+            if(ok){ s.ok++; s.fail = 0; s.ts = Date.now(); }
+            else { s.fail = Math.min(9, (s.fail || 0) + 1); }
+            saveSrcStat();
+        }
+        function srcScore(key){
+            var s = srcStat[key];
+            if(!s) return 0;
+            return (s.ts ? 1000 : 0) - (s.fail || 0) * 100 + Math.min(99, s.ok || 0);
+        }
+        /** 按健康度排序后的音源键；默认顺序 qj → ij → gd（播放源优先 qijieya） */
+        function rankedSrcKeys(){
+            // 用户指定：qijieya 固定为第一播放源，其余（injahow 镜像 → gdstudio 直链）按健康度动态排序。
+            // 唯一的例外保护：qijieya 连续失败 3 次且从未成功过时，临时让位给备源，
+            // 避免每次切歌都先白撞一遍挂掉的主源；qijieya 一旦恢复成功（fail 归零）自动回到首位。
+            var rest = ['ij', 'gd'].sort(function(a, b){ return srcScore(b) - srcScore(a); });
+            var s = srcStat.qj;
+            if(s && (s.fail || 0) >= 3 && !s.ts) return rest.concat(['qj']);
+            return ['qj'].concat(rest);
+        }
+
+        /* ===== 本地存储裁剪：只增不减的老实现早晚撞配额（撞了就被 catch 吞掉，记忆静默失效） ===== */
+        var STORE_MAX_KEYS = 300;
+        function trimStore(obj, max){
+            var keys = Object.keys(obj);
+            if(keys.length <= max) return obj;
+            // 字符串键按插入顺序枚举，删掉最早的一批
+            for(var i = 0; i < keys.length - max; i++) delete obj[keys[i]];
+            return obj;
+        }
+        /** 生成一首歌的播放地址候选。qijieya 固定优先，其余源按健康度动态排，
+            qijieya 连续失败时临时让位、恢复后自动回首位。 */
+        var SRC_META = {
+            qj: { json: false, f: function(id){ return SRC.qj.url(id); } },
+            ij: { json: false, f: function(id){ return SRC.ij.url(id); } },
+            gd: { json: true,  f: function(id){ return SRC.gd.url(id); } }
+        };
+        function buildPlayUrls(s){
+            var id = s.urlId || s._origId || s.id;
+            if(!id) return [];
+            var keys = rankedSrcKeys(), out = [];
+            for(var i = 0; i < keys.length; i++){
+                var k = keys[i];
+                out.push({ key: k, label: SRC[k].label, u: SRC_META[k].f(id), json: SRC_META[k].json });
+            }
+            return out;
+        }
+
+        function $(id){ return document.getElementById(id); }
+        /* ===== v1.15 底部提示弹窗 =====
+           所有提示（含错误）统一走 #status 这一个 fixed 浮层，由 .show 控制弹出/收起。
+           以前 #status 是文档流里的一行、错误另有 #errorCard 一行，两者都会在卡片下方
+           占高度并露出蓝色背景带；合并后浮层不占布局，卡片可铺到屏幕底边。
+           每条消息独立计时，2 秒后自动收起；新消息重置计时。 */
+        var STATUS_DWELL = 2000;
+        var statusTimer = null;
+        function showStatus(m, oneShot, isErr){
+            var el = $('status');
+            el.textContent = m || '';
+            // 不用 classList.toggle 的第二参数：部分老电视盒子 WebView 不支持
+            if(isErr && m) el.classList.add('err'); else el.classList.remove('err');
+            if(m) el.classList.add('show'); else el.classList.remove('show');
+            oneShotStatus = !!oneShot;
+            if(statusTimer){ clearTimeout(statusTimer); statusTimer = null; }
+            if(m){
+                statusTimer = setTimeout(function(){
+                    statusTimer = null;
+                    el.textContent = '';
+                    el.classList.remove('show');
+                    el.classList.remove('err');
+                    oneShotStatus = false;
+                }, STATUS_DWELL);
+            }
+        }
+        /* 错误提示：复用同一个弹窗，只换红底。电视上浮层 fixed 于视口，
+           不会再像旧 #errorCard 那样被挤出屏幕，三端表现一致。 */
+        function showError(m){ showStatus(m, true, true); }
+        /* 只收起"错误"弹窗，避免误清掉紧随其后要显示的"正在加载…"等普通提示 */
+        function hideError(){
+            var el = $('status');
+            if(el && el.classList.contains('err')) showStatus('');
+        }
+        // 弹窗开关上报原生层：弹窗打开时按返回只关弹窗，不再直接退出 App
+        function notifyPicker(open){
+            try{ if(window.Yanzi && typeof window.Yanzi.setPickerOpen === 'function') window.Yanzi.setPickerOpen(!!open); }catch(e){}
+        }
+
+        /* ===== 返回键：连按两次才退出 =====
+           三条入口共用同一状态机，避免各自计数：
+             1) APP 原生层 onBackPressed → window.__onBack()，返回 true=拦截 / false=放行 finish()
+             2) 纯网页端（PC / 手机浏览器）→ history 哨兵 + popstate
+             3) 电视遥控器 Escape → initTvRemote 的 keydown 分支
+           同一物理按键可能同时走两条通道（原生回调 + popstate / keydown），80ms 内的
+           重复调用只补拦截、不重复计数；人手连按两次一般 >150ms，不会被吞。 */
+        var BACK_GAP = 2000;
+        var lastBackAt = 0;
+        var lastBackHandledAt = 0;
+        var backResetTimer = null;
+        function handleBack(){
+            var now = Date.now();
+            if(now - lastBackHandledAt < 80){ lastBackHandledAt = now; return true; }
+            lastBackHandledAt = now;
+            if(!document.body) return true;                  // DOM 未就绪：一律拦截
+            // 1) 弹窗打开时，返回只关弹窗
+            var mask = $('pickerMask');
+            if(mask && mask.classList.contains('show')){ closePicker(); return true; }
+            // 2) 键盘会话中（焦点在输入框）时，返回只收键盘。
+            //    收起即 blur，两者同生同灭，不会出现「要按三次才能退出」。
+            var aeBack = document.activeElement;
+            if(aeBack && (aeBack.tagName === 'INPUT' || aeBack.tagName === 'TEXTAREA')){
+                hideKb(); return true;
+            }
+            // 3) 连按两次退出
+            if(now - lastBackAt < BACK_GAP){
+                lastBackAt = 0;
+                if(backResetTimer){ clearTimeout(backResetTimer); backResetTimer = null; }
+                return false;                                 // 放行：原生 finish() / 浏览器后退
+            }
+            lastBackAt = now;
+            var msg = '再按一次返回键退出燕子音乐';
+            showStatus(msg, true);
+            if(backResetTimer) clearTimeout(backResetTimer);
+            backResetTimer = setTimeout(function(){
+                backResetTimer = null;
+                if(lastBackAt === now) lastBackAt = 0;
+                // v1.15：走 showStatus('') 才能同时收起弹窗（直接清 textContent 会留下空浮层）
+                var st = $('status');
+                if(st && st.textContent === msg) showStatus('');
+            }, BACK_GAP);
+            return true;
+        }
+        // 原生层在 onBackPressed / onKeyDown(KEYCODE_BACK) 中调用；true 请拦截，false 才 finish()
+        window.__onBack = handleBack;
+
+        /* 网页端：塞一条 history 哨兵。第一次返回触发 popstate → 提示并拦截（补回哨兵）；
+           2 秒内第二次返回 → 不补哨兵，浏览器自然离开本页。 */
+        function armBackGuard(){
+            try{ history.pushState({ yzBackGuard: 1 }, '', location.href); }
+            catch(e){ return; }                               // file:// / 禁用 history：交给 __onBack
+            window.addEventListener('popstate', function(){
+                if(isTv) return;                              // 电视交给原生 / keydown，避免双通道
+                if(handleBack()){
+                    try{ history.pushState({ yzBackGuard: 1 }, '', location.href); }catch(e2){}
+                }
+                // 返回 false（第二次连按）：不补哨兵，让浏览器继续后退
+            });
+        }
+
+        /* ===== 输入法（软键盘）控制（全新设计） =====
+           设计原则：页面不维护任何「键盘是否可见」的状态，只做两件确定的事——
+           把焦点放进输入框、把焦点拿出输入框。「焦点在输入框」即「键盘会话中」，
+           两者同生同灭，不可能错位。键盘的弹出 / 收起 / 失败重试 / 状态同步全部在
+           原生层完成：
+             · windowSoftInputMode=adjustNothing —— 键盘以浮层覆盖，窗口不压缩、
+               页面不重排，从根上消除「弹出抖动 / 按一下闪屏」；
+             · 原生 restartInput + isActive 校验重试，解决「偶发弹不出」；
+             · 原生 onKeyPreIme 拦截返回键（在 IME 消费之前）+ isActive 轮询兜底，
+               覆盖所有 ROM 的返回键投递路径，解决「返回键闪退」。
+           页面侧只保留四个极简接口：showKb / hideKb / __kbClosed / __kbFailed。 */
+        /* 手机手势去重：pointerdown → touchend → click → focus 会连续派发，
+           300ms 内只处理一次（建立焦点 + 发一次请求）。 */
+        var wakeHandled = 0;
+
+        /* 是否发生过真实用户交互。
+           用来闸住"页面自动聚焦输入框 → 误弹输入法"：部分电视盒子的 WebView 在加载完成时
+           会把第一个输入框设为焦点，或在 __setTv 到达前（isTv 还是 false 的一瞬）触发 focus，
+           于是 App 一启动就弹出键盘。没有真实点击/按键就绝不主动弹键盘。 */
+        var userActed = false;
+        (function(){
+            function mark(){ userActed = true; }
+            try{
+                document.addEventListener('touchstart', mark, true);
+                document.addEventListener('mousedown', mark, true);
+                document.addEventListener('pointerdown', mark, true);
+                document.addEventListener('keydown', mark, true);
+                // v1.17：部分定制 WebView 点输入框只派发 click，不派发上面三种按下事件，
+                // 会让 userActed 一直是 false，进而把「用户点的焦点」误判成系统自动聚焦。
+                document.addEventListener('click', mark, true);
+            }catch(e){}
+        })();
+
+        /** 唤起键盘：把焦点放进输入框（调用方已 focus 或此处补 focus），然后只发一次
+            原生请求。失败重试与结果确认全在原生层，页面不重试、不探测、不写任何样式。 */
+        function showKb(){
+            try{
+                if(window.Yanzi && typeof window.Yanzi.showKeyboard === 'function'){
+                    window.Yanzi.showKeyboard();
+                }
+            }catch(e){}
+        }
+
+        /** 收起键盘 = 把焦点拿出输入框 + 通知原生。搜索提交、弹窗打开、
+            输入法的回车/搜索键等全部走这一个出口。 */
+        function hideKb(){
+            blurInput();
+            try{
+                if(window.Yanzi && typeof window.Yanzi.hideKeyboard === 'function'){
+                    window.Yanzi.hideKeyboard();
+                }
+            }catch(e){}
+        }
+
+        /** 把焦点从输入框拿出（只对输入框 blur）。 */
+        function blurInput(){
+            var a = document.activeElement;
+            if(a && a !== document.body && a.blur && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')){
+                try{ a.blur(); }catch(e){}
+            }
+        }
+
+        /* 原生层回调：键盘被关闭（用户在输入法里按返回键、原生 isActive 轮询发现
+           键盘自行消失）。页面只需把焦点从输入框拿出，电视模式下把焦点环还到搜索框。 */
+        window.__kbClosed = function(){
+            blurInput();
+            if(isTv){
+                var k = $('playlistId');
+                if(k) remoteFocus(k);
+            }
+        };
+
+        /* 原生层回调：多次重试后键盘仍弹不出。复位焦点，用户再按一次确认键即可重试。 */
+        window.__kbFailed = function(){
+            blurInput();
+            if(isTv){
+                var k = $('playlistId');
+                if(k) remoteFocus(k);
+            }
+            showStatus('输入法未响应，请再按一次确认键重试', true);
+        };
+
+        /* ===== 输入法上的"搜索 / 完成"键 =====
+           电视输入法的搜索键、手机输入法的回车键、实体键盘回车，在 WebView 里统一表现为 keydown Enter。
+           v1.7 的写法是：TV 模式下 imeOpen 为 true 就 return —— 本意是"回车可能是在给输入法上字，
+           不要误触发搜索"，但它把输入法的搜索键一起吞掉了，表现为"点了搜索没反应"。
+           区分方式：输入法组词中 isComposing 为 true，此时回车交给输入法上字；否则就是用户要搜索。 */
+        var lastImeSearchTs = 0;
+        function doSearchFromIme(){
+            var now = Date.now();
+            // keydown / keyup / search 事件可能连发，600ms 内只认一次，避免重复检索
+            if(now - lastImeSearchTs < 600) return;
+            lastImeSearchTs = now;
+            hideKb();
+            loadOrSearch();
+        }
+        function onSearchKey(ev){
+            ev = ev || window.event;
+            if(!ev) return true;
+            var isEnter = (ev.key === 'Enter') || ev.keyCode === 13 || ev.which === 13;
+            if(!isEnter) return true;
+            if(ev.isComposing) return true;   // 组词中：先让输入法上字，不能抢
+            if(ev.preventDefault) ev.preventDefault();
+            // 必须阻止冒泡：document 上的电视按键监听还会把同一个 Enter 当成"遥控器确认"，
+            // 而那时 hideKb 已把焦点从输入框移走，判断不到"焦点在输入框"，会二次触发
+            // remoteActivate → 又弹一次键盘（表现为"搜索没反应，键盘还弹回来"）
+            if(ev.stopPropagation) ev.stopPropagation();
+            doSearchFromIme();
+            return false;
+        }
+
+        function fmt(t){
+            // isFinite 兜底：直播流/异常时长会给 Infinity，Math.floor(Infinity%60) 是 NaN，
+            // 旧实现会渲染出 "Infinity:NaN"
+            if(!isFinite(t) || t < 0) t = 0;
+            var m = Math.floor(t/60), s = Math.floor(t%60);
+            return (m<10?'0':'')+m+':'+(s<10?'0':'')+s;
+        }
+        /* ===== 自动播放自愈 =====
+           WebView 默认要求用户手势才能播放（setMediaPlaybackRequiresUserGesture），
+           或原生层音频焦点／前台服务抢焦点时，audio 会「刚出声就被暂停 / play() 被拒」。
+           三层兜底：首次交互补播、被动 pause 自动恢复、回前台恢复。
+           用户主动暂停会把 wantAutoPlay 置 false，不会被强行拉回播放。 */
+        var wantAutoPlay = false;
+        var resumeTries = 0;
+        var resumeTimer = null;
+        var gestureArmed = false;
+        function markWantPlay(v){ wantAutoPlay = !!v; if(v) resumeTries = 0; }
+        function tryResumePlay(){
+            if(!wantAutoPlay || !audio.src || audio.error || audio.ended || !audio.paused) return;
+            if(resumeTries >= 6) return;          // 彻底不可播时不要无限重试刷日志
+            resumeTries++;
+            safePlay();
+        }
+        function scheduleResume(delay){
+            if(resumeTimer) clearTimeout(resumeTimer);
+            resumeTimer = setTimeout(function(){ resumeTimer = null; tryResumePlay(); }, delay || 350);
+        }
+        // play() 被系统拦截时，用户点屏幕任意处或按任意键就自动补播，不必去找播放键
+        function armGestureResume(){
+            if(gestureArmed) return;
+            gestureArmed = true;
+            var evs = ['pointerdown', 'touchend', 'mousedown', 'keydown'];
+            function onAct(){
+                gestureArmed = false;
+                for(var j=0;j<evs.length;j++) document.removeEventListener(evs[j], onAct, true);
+                if(wantAutoPlay && audio.paused) scheduleResume(60);
+            }
+            for(var i=0;i<evs.length;i++) document.addEventListener(evs[i], onAct, true);
+        }
+        function safePlay(){
+            try {
+                var p = audio.play();
+                if(p && typeof p.catch === 'function'){
+                    p.catch(function(err){
+                        // 播放被拒时显示原因：原来空 catch 吞掉异常，出了问题只能看到"点了没反应"
+                        var name = (err && err.name) ? String(err.name) : '';
+                        if(name.indexOf('NotAllowed') >= 0){
+                            showStatus('系统拦截了自动播放，点一下屏幕即可开始播放', true);
+                            armGestureResume();
+                        } else if(name.indexOf('NotSupported') >= 0){
+                            showStatus('音频地址无效或格式不支持，换一首试试', true);
+                        } else if(name){
+                            showStatus('播放失败：' + name, true);
+                        }
+                    });
+                }
+            } catch(e){}
+        }
+        // 把当前歌曲信息和播放状态回传给原生前台服务，供通知栏 / 锁屏媒体控制使用
+        function reportPlaybackState(){
+            if(!window.Yanzi || typeof window.Yanzi.updateState !== 'function') return;
+            var s = songList[curIndex] || {};
+            var title = ($('songName').textContent || s.name || '燕子音乐').trim();
+            var artist = ($('songArtist').textContent || s.artist || '').trim();
+            var playing = !!audio.src && !audio.paused;
+            var pos = isFinite(audio.currentTime) ? audio.currentTime : 0;
+            var dur = isFinite(audio.duration) ? audio.duration : 0;
+            try{ window.Yanzi.updateState(title, artist, playing, pos, dur); }catch(e){}
+        }
+        function parsePlaylistId(input){
+            input = (input||'').trim();
+            var m = input.match(/id=(\d+)/);
+            if(m) return m[1];
+            if(/^\d+$/.test(input)) return input;
+            return null;
+        }
+        /* 取文本。必须保证 cb 只被调用一次：
+           XHR 规范里"网络错误/超时"时 readystatechange(readyState=4, status=0) 与 error/timeout
+           事件都会触发，旧实现两个分支各调一次 cb('')，实测（Chromium）回调序列为
+           ["readystatechange@0", "onerror"]。后果：
+             · loadPlaylist 的 pending 被多减一次 → 先误报"歌单加载失败"，随后真正的镜像结果因
+               done 已置真被丢弃；
+             · searchMulti 的 busy 被多减一次 → 提前 finish([])，慢一些但能用的源结果被丢弃；
+             · applyPlaySource / fetchLrcChain 会一次跳过两个候选源。 */
+        /* ===== APP 原生代请求桥接（可选，未接入时行为完全不变） =====
+           music.163.com 的接口不带 Access-Control-Allow-Origin，浏览器 XHR 会被 CORS 拦。
+           APP 打包后可让原生层代为发起 GET，绕过跨域限制。约定如下：
+             JS  → 原生：Yanzi.httpGet(url, cbId)          cbId 为递增整数
+             原生 → JS ：window.__yzHttpCb(cbId, status, text)
+           原生请求完成后在 UI 线程回调，例如：
+             webView.evaluateJavascript("window.__yzHttpCb(" + cbId + "," + status + ","
+                                        + jsonStringLiteral + ")", null);
+           jsonStringLiteral 必须是 JSON 字符串字面量（用 JSON.stringify(text) 生成），
+           status 非 2xx 或超时都会按失败处理，自动退回 qijieya 等备源。
+           只对官方 163 域名启用；其余接口自带 CORS，继续走 XHR 更快也更稳。 */
+        var yzHttpSeq = 0;
+        var yzHttpPend = {};
+        window.__yzHttpCb = function(id, status, text){
+            var p = yzHttpPend[id];
+            if(!p) return;
+            delete yzHttpPend[id];
+            if(p.timer) clearTimeout(p.timer);
+            p.once(status >= 200 && status < 300 ? String(text || '') : '');
+        };
+        function nativeGetText(url, cb, timeout){
+            var called = false;
+            function once(txt){
+                if(called) return;
+                called = true;
+                try{ cb(txt || ''); }catch(e){}
+            }
+            var id = ++yzHttpSeq;
+            var timer = setTimeout(function(){ delete yzHttpPend[id]; once(''); },
+                                   timeout || 10000);
+            yzHttpPend[id] = { once: once, timer: timer };
+            try{ window.Yanzi.httpGet(url, id); }
+            catch(e){ delete yzHttpPend[id]; clearTimeout(timer); once(''); }
+        }
+        function getText(url, cb, timeout){
+            if(/^https:\/\/music\.163\.com\//.test(url) &&
+               window.Yanzi && typeof window.Yanzi.httpGet === 'function'){
+                return nativeGetText(url, cb, timeout);
+            }
+            var called = false;
+            function once(txt){
+                if(called) return;
+                called = true;
+                try{ cb(txt || ''); }catch(e){}
+            }
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', url, true);
+            xhr.timeout = timeout || 10000;
+            xhr.onreadystatechange = function(){
+                if(xhr.readyState !== 4) return;
+                if(xhr.status >= 200 && xhr.status < 300) once(xhr.responseText);
+                else once('');
+            };
+            xhr.onerror = function(){ once(''); };
+            xhr.ontimeout = function(){ once(''); };
+            xhr.onabort = function(){ once(''); };
+            xhr.send(null);
+        }
+
+        function parseLrc(text){
+            var lines = [];
+            if(!text) return lines;
+            text = text.replace(/^\uFEFF/, '').replace(/\r/g, '');
+            // 剥离卡拉OK逐字标签（增强型 LRC）：行内 <00:10.00>词<00:12.00>词，不剥会原样显示到屏幕
+            text = text.replace(/<\d{1,3}:\d{1,2}(?:[.:]\d{1,3})?>/g, '');
+            // 解析歌词自带的整体偏移标签 [offset:±毫秒]，应用到所有行
+            var om = text.match(/\[offset:([+-]?\d+)\s*\]/);
+            var offsetSec = om ? (parseInt(om[1], 10) / 1000) : 0;
+            // 按行解析：行首可堆叠多个时间标签（重复句写法 [00:10][00:20]副歌），
+            // 每个时间标签各生成一行、共享同一文本；旧正则逐个匹配会丢掉"空文本时间标签"，
+            // 导致重复句的第一个时间点整行消失
+            var lineRe = /[^\n]+/g;
+            var tagRe = /\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]/g;
+            var lm;
+            while((lm = lineRe.exec(text))){
+                var seg = lm[0];
+                tagRe.lastIndex = 0;
+                var times = [], consumed = 0, m2;
+                while((m2 = tagRe.exec(seg))){
+                    var min = parseInt(m2[1], 10) || 0;
+                    var sec = parseInt(m2[2], 10) || 0;
+                    var msStr = m2[3] || '';
+                    var ms = 0;
+                    if(msStr){
+                        if(msStr.length === 1) ms = parseInt(msStr,10) * 100;
+                        else if(msStr.length === 2) ms = parseInt(msStr,10) * 10;
+                        else ms = parseInt(msStr,10);
+                    }
+                    times.push(min*60 + sec + ms/1000 + offsetSec);
+                    consumed = tagRe.lastIndex;
+                }
+                if(!times.length) continue;   // 元数据行 / [offset:] 行
+                var txt = seg.slice(consumed).trim();
+                if(!txt) continue;            // 纯时间标签的空行
+                for(var ti=0; ti<times.length; ti++) lines.push({time:times[ti], text:txt});
+            }
+            lines.sort(function(a,b){ return a.time - b.time; });
+            return lines;
+        }
+        function loadOffsets(){
+            try{
+                var s = localStorage.getItem('lrcOffsets');
+                if(s) songOffsets = JSON.parse(s) || {};
+            }catch(e){ songOffsets = {}; }
+        }
+        function saveOffsets(){
+            try{ localStorage.setItem('lrcOffsets', JSON.stringify(trimStore(songOffsets, STORE_MAX_KEYS))); }catch(e){}
+        }
+        // 换词结果记忆：key=「歌名|歌手|原始网易云ID」→ 换词后的歌词 id（存 localStorage，下次播放同曲自动应用；同名多版本按原始ID精准区分）
+        var lyricMemory = {};
+        function loadLyricMemory(){
+            try{ var s = localStorage.getItem('lrcMemory'); if(s) lyricMemory = JSON.parse(s) || {}; }catch(e){ lyricMemory = {}; }
+        }
+        function saveLyricMemory(){
+            try{ localStorage.setItem('lrcMemory', JSON.stringify(trimStore(lyricMemory, STORE_MAX_KEYS))); }catch(e){}
+        }
+        function offsetKey(s){
+            if(!s) return '';
+            return (s.url || '') + '|' + (s.name || '');
+        }
+        function curOffset(){
+            var s = songList[curIndex];
+            var k = offsetKey(s);
+            if(k && typeof songOffsets[k] === 'number') return songOffsets[k];
+            return LRC_BASE_OFFSET;
+        }
+        function refreshOffsetDisplay(){
+            var v = curOffset();
+            var el = $('lrcOff');
+            if(el) el.textContent = (v>=0?'+':'') + v.toFixed(2) + 's';
+        }
+        function adjustOffset(delta){
+            var s = songList[curIndex];
+            if(!s) return;
+            var k = offsetKey(s);
+            var base = (typeof songOffsets[k] === 'number') ? songOffsets[k] : LRC_BASE_OFFSET;
+            var v = Math.round((base + delta) * 100) / 100;
+            songOffsets[k] = v;
+            saveOffsets();
+            refreshOffsetDisplay();
+            if(lrcLines.length) updateLrc(audio.currentTime);
+            showStatus('歌词偏移：' + (v>=0?'+':'') + v.toFixed(2) + 's（已记忆）', true);
+        }
+        /** 把播放列表中的某一行滚动到容器顶部（当前播放行 / TV 焦点行始终置顶）。
+            用 getBoundingClientRect 计算，避免 offsetParent 不是 listBox 时算错。
+            v1.8：置顶行上方必须留 8px —— 焦点框是 outline 2px + offset 2px，
+            贴着容器顶边会被 overflow 裁掉上边框（真机反馈"框线显示不完整"）。 */
+        var LIST_TOP_GAP = 8;
+        function scrollListRowToTop(el){
+            var box = $('listBox');
+            if(!box || !el || !box.contains(el)) return;
+            // 每次先还原：列表重建后 afterBuild 与 TV 布局回调会各调一次，
+            // 不清零的话两次补偿会叠加，末尾凭空多出一大片空白。
+            box.style.paddingBottom = '';
+            var top = el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop;
+            var target = top - LIST_TOP_GAP;
+            if(target < 0) target = 0;
+            // 末尾几首：滚动条到底也顶不上去，只补「差的那一段」底部空白，
+            // 前部的行不受影响，也不会凭空多出一大片空白。
+            var maxScroll = box.scrollHeight - box.clientHeight;
+            if(target > maxScroll) box.style.paddingBottom = (10 + Math.ceil(target - maxScroll)) + 'px';
+            box.scrollTop = target;
+        }
+        function scrollCurRowToTop(){
+            var box = $('listBox');
+            if(box) scrollListRowToTop(box.querySelector('.li.cur'));
+        }
+        function renderList(){
+            var box = $('listBox');
+            box.style.paddingBottom = '';   // 每次重建先撤掉上一轮补的尾部空白，再按需补
+            // 重建前记住焦点的稳定键（列表行按 data-idx 记录），重建后精确恢复到同一行。
+            // 旧实现只记住 DOM 引用、且"原本在行上"时干脆不恢复 —— 按 OK 播放一首后
+            // 列表即重建，焦点随之丢失，下一次方向键就跳回搜索框（真机反馈的焦点乱跳）。
+            var keepKey = focusKey;
+            // 焦点恢复绝不能挂在异步回调里（rAF 可能被暂停）：立即按稳定键恢复，
+            // 布局改完高度后只再校正一次滚动位置。
+            function afterBuild(){
+                scrollCurRowToTop();   // 当前播放行置顶（手机 / PC / TV 通用）
+                if(!isTv) return;
+                restoreFocus(keepKey);
+                layoutTvList(function(){
+                    if(isTv && focusEl && document.body.contains(focusEl)){
+                        // 焦点落在列表行时以焦点行为准置顶，其它控件仍按"滚入可视区"处理
+                        if(focusEl.classList.contains('li') && box.contains(focusEl)){
+                            scrollListRowToTop(focusEl);
+                        } else {
+                            focusScroll(focusEl);
+                        }
+                    }
+                });
+            }
+            if(!songList.length){
+                box.innerHTML = '';
+                remoteReset();
+                afterBuild();
+                return;
+            }
+            var html = '';
+            for(var i=0;i<songList.length;i++){
+                var cur = (i===curIndex) ? ' cur' : '';
+                html += '<div class="li'+cur+'" tabindex="0" data-idx="'+i+'">'+
+                        '<span class="idx">'+(i+1)+'</span>'+
+                        '<span class="nm"></span>'+
+                        '<span class="ar"></span></div>';
+            }
+            box.innerHTML = html;
+            var items = box.querySelectorAll('.li');
+            for(var k=0;k<items.length;k++){
+                (function(el, idx){
+                    el.querySelector('.nm').textContent = songList[idx].name;
+                    el.querySelector('.ar').textContent = songList[idx].artist;
+                    el.onclick = function(){ pick(idx); };
+                    // 阻止冒泡：document 上的电视按键监听会把同一个 Enter 当成"遥控器确认"
+                    // 再走一次 remoteActivate → pick()，一次按键切两次歌、发两轮请求。
+                    el.onkeydown = function(ev){
+                        if(ev.key==='Enter' || ev.keyCode===13){
+                            if(ev.preventDefault) ev.preventDefault();
+                            if(ev.stopPropagation) ev.stopPropagation();
+                            pick(idx);
+                        }
+                    };
+                })(items[k], k);
+            }
+            remoteReset();
+            afterBuild();
+        }
+
+        /** 显示/隐藏播放列表（表头随列表一起收起）。默认展开，由控制栏最右的「列表」按钮切换。
+            折叠只切 CSS 类、不清 DOM：切歌时 renderList 照常重建，展开后焦点、滚动位置
+            与当前行置顶都能立刻恢复，不需要重新拉数据。头部（标题栏/搜索行）仍常驻。 */
+        function listToggle(){
+            listHidden = !listHidden;
+            document.body.classList.toggle('list-hidden', listHidden);
+            var btn = $('listBtn');
+            if(btn){
+                btn.setAttribute('aria-expanded', listHidden ? 'false' : 'true');
+                btn.title = listHidden ? '显示歌曲列表' : '隐藏歌曲列表';
+            }
+            if(isTv){
+                // 折叠后列表行 display:none，电视焦点不能留在不可见元素上
+                if(listHidden && focusEl && focusEl.classList.contains('li')){
+                    remoteFocus(btn || $('playBtn'));
+                }
+                layoutTvList(function(){
+                    // 电视卡片/列表高度是异步重算的，必须等布局落地后再置顶，否则滚动位置算错
+                    if(!listHidden){
+                        var onRow = focusEl && focusEl.classList.contains('li') && $('listBox').contains(focusEl);
+                        if(onRow) scrollListRowToTop(focusEl);   // 与 renderList 的 afterBuild 保持一致
+                        else { scrollCurRowToTop(); if(focusEl && document.body.contains(focusEl)) focusScroll(focusEl); }
+                    } else if(focusEl && document.body.contains(focusEl)){
+                        focusScroll(focusEl);
+                    }
+                });
+            } else if(!listHidden){
+                // 展开后把当前播放行重新置顶（隐藏期间的置顶计算得到的是 0）
+                scrollCurRowToTop();
+            }
+            showStatus(listHidden ? '已隐藏歌曲列表' : '已显示歌曲列表');
+        }
+
+        function pick(i){
+            curIndex = i;
+            loadCurrent(true);
+            // 电视焦点：切歌列表重建后，把焦点环还给当前选中行
+            if(isTv){
+                setTimeout(function(){
+                    var row = document.querySelector('.li[data-idx="' + i + '"]');
+                    if(row) remoteFocus(row);
+                }, 100);
+            }
+        }
+        function togglePlay(){
+            var s = songList[curIndex];
+            // 上一次因音源全部失败而中断（audio.error 非空）时，"播放"应按"重试"处理：
+            // 从候选链第一项重新开始，而不是对着一个已经失效的 src 再 play 一次。
+            if(audio.src && audio.error && s){
+                s.srcPos = -1;
+                markWantPlay(true);
+                applyPlaySource(s, playToken, true);
+                return;
+            }
+            if(audio.src){
+                if(audio.paused){ markWantPlay(true); safePlay(); }
+                else { markWantPlay(false); audio.pause(); }   // 用户主动暂停：先落标记，避免被动恢复把它拉回
+            } else {
+                loadCurrent(true);
+            }
+        }
+        function playPrev(){ if(songList.length){ curIndex=(curIndex-1+songList.length)%songList.length; loadCurrent(true);} }
+        function playNext(){
+            if(!songList.length) return;
+            if(playMode===2){
+                var r;
+                if(songList.length===1){ r = 0; }
+                else { do { r = Math.floor(Math.random()*songList.length); } while(r === curIndex); }
+                curIndex = r;
+            } else {
+                curIndex = (curIndex+1) % songList.length;
+            }
+            loadCurrent(true);
+        }
+        function toggleVol(){
+            muted = !muted;
+            audio.muted = muted;
+            if(muted){ try{ audio.volume = 0; }catch(e){} }
+            else { try{ audio.volume = 1; }catch(e){} }
+            setMuteIcon(muted);
+            showStatus(muted ? '已静音' : '取消静音');
+        }
+        var verifyingIndex = -1;
+        function removeSong(i){
+            if(i<0 || i>=songList.length) return false;
+            songList.splice(i,1);
+            if(curIndex > i) curIndex--;
+            else if(curIndex === i) curIndex = Math.min(curIndex, songList.length-1);
+            renderList();
+            return true;
+        }
+        var playToken = 0;   // 播放序号，防止 song/url、歌词异步返回时串歌
+        var checkedLrcSync = false;
+        // 歌词与音频时长粗校验：音频明显短于歌词末行时间戳 → 试听版/不同版本，提示可能不同步（每首歌仅一次）
+        function checkLrcSync(){
+            if(checkedLrcSync) return;
+            var l = lrcLines;
+            if(!l.length) return;
+            var d = audio.duration;
+            if(!isFinite(d) || d <= 0) return;   // 时长还没拿到：这次不算数，等 loadedmetadata/canplay 再来
+            checkedLrcSync = true;               // 旧实现只在"命中不同步"时才落锁，正常歌曲每次 play 都会重算一遍
+            var lastT = l[l.length-1].time;
+            if(d < lastT - 3){
+                showStatus('提示：此歌可能是试听版或不同版本，歌词可能不同步，可手动“+/−”微调或“换词”', true);
+            }
+        }
+        function playCurrent(s, autoplay){
+            if(oneShotStatus){ showStatus(''); oneShotStatus = false; }
+            $('songName').textContent = s.name || '未知';
+            $('songArtist').textContent = s.artist || '';
+            reportPlaybackState();
+            var tk = ++playToken;
+            // 切歌时立即清空旧歌词，避免新歌词异步加载期间残留上一首歌的歌词（"选新歌却显示旧歌歌词"）
+            lrcLines = [];
+            lrcEls = [];          // 强制 updateLrc 重建歌词 DOM（新旧歌词行数相同时也要重建）
+            refreshOffsetDisplay();
+            updateLrc(0);
+            // 播放地址候选链：qijieya → injahow 镜像 → gdstudio 直链，任一失败自动换下一个
+            s.playUrls = buildPlayUrls(s);
+            s.srcPos = -1;
+            applyPlaySource(s, tk, autoplay);
+            applyCover(s, tk);
+            loadLyricForSong(s, tk);
+            renderList();
+            refreshOffsetDisplay();
+        }
+
+        /* ===== v1.20：自动播放等缓冲就绪再起播 =====
+           qj / ij 的 type=url 是 302 跳转到真实音频，gd 还要先取一次 JSON 才拿到直链。
+           旧实现 audio.src = c.u 之后立刻 play()：探针实测 play 事件发生在 readyState=0，
+           24ms 后才 loadeddata/playing。Android WebView 的媒体栈会在这个「重定向/缓冲
+           未完成」的窗口里先输出很短的一声，随后中止（pause），再由 pause 自愈
+           scheduleResume(400) 补播，加上重新缓冲约 0.5~1 秒 —— 真机表现正是
+           「启动先响一声、停顿 1 秒左右再正常播放」。
+           现在改为等 canplay / loadeddata（已有可播放数据）再 play，一次连续出声；
+           带 playToken 校验防止旧源的异步回调误触发，3 秒兜底避免个别内核不派发 canplay。 */
+        var readyPlayTk = 0;
+        var readyPlayTimer = null;
+        var readyPlayCleanup = null;
+        var readyPlayProbeDone = false;   // 兜底探测只做一次，避免音源失败时连弹多条错误提示
+        function armReadyPlay(tk){
+            if(readyPlayCleanup){ readyPlayCleanup(); readyPlayCleanup = null; }
+            if(readyPlayTimer){ clearTimeout(readyPlayTimer); readyPlayTimer = null; }
+            readyPlayTk = tk;
+            /* 旧实现里 safePlay() 紧跟在 audio.src 之后，会立刻派发 play 事件把
+               verifyingIndex 置 -1。现在 play 延后到缓冲就绪，若不补这一句，音源失败时
+               skipFailedSong 会把「从未成功起播」误判成启动验证失败，每 300ms 删一首歌、
+               反复重建列表 —— 手机端还会把用户刚点出的输入焦点一起带跑。 */
+            verifyingIndex = -1;
+            var fired = false;
+            function cleanup(){
+                audio.removeEventListener('canplay', onReady);
+                audio.removeEventListener('canplaythrough', onReady);
+                audio.removeEventListener('loadeddata', onReady);
+            }
+            function go(){
+                if(fired || tk !== playToken || tk !== readyPlayTk) return;
+                fired = true;
+                cleanup();
+                readyPlayCleanup = null;
+                if(readyPlayTimer){ clearTimeout(readyPlayTimer); readyPlayTimer = null; }
+                safePlay();
+            }
+            function onReady(){ go(); }
+            readyPlayCleanup = cleanup;
+            // 只用 readyState>=2 的事件（有真实音频帧），不用 loadedmetadata：后者只有元数据，
+            // 起播太早等于又回到 302 空窗。
+            audio.addEventListener('canplay', onReady);
+            audio.addEventListener('canplaythrough', onReady);
+            audio.addEventListener('loadeddata', onReady);
+            /* 500ms 兜底：部分 WebView 在 autoplay 被拦时干脆不预加载媒体，canplay 永远不来，
+               于是 play() 从未被调用 → NotAllowedError 不触发 → armGestureResume() 不挂载，
+               用户点屏幕也不会补播（v1.10 的自愈链路会断）。这里补一次 play() 让判定发生；
+               若之后 canplay 到达，go() 仍会正常起播（对已播放元素重复 play 是无操作）。 */
+            readyPlayTimer = setTimeout(function(){
+                readyPlayTimer = null;
+                if(fired || tk !== playToken || tk !== readyPlayTk) return;
+                if(audio.readyState >= 2){ go(); return; }
+                /* 只探测一次：音源失败时切源会多次重新 arm，重复 play() 会连弹多条
+                   「音频地址无效」提示，把返回键一类用户操作提示盖掉。 */
+                if(!readyPlayProbeDone){ readyPlayProbeDone = true; safePlay(); }
+            }, 500);
+        }
+
+        /**
+         * 按候选链依次尝试播放地址。
+         * gdstudio 的 types=url 返回 JSON（{"url":"https://..."}），需要先取到真实地址再交给 audio。
+         * 注意：srcPos 是靠"失败一次前进一格"驱动的，所以每个失败点都必须只前进一次，
+         * 这里用 s._advancing 防止 getText 回调重入导致的连跳。
+         */
+        function applyPlaySource(s, tk, autoplay){
+            if(!s || !s.playUrls || !s.playUrls.length){ skipFailedSong(); return false; }
+            if(s._advancing){ return true; }          // 同一次失败只前进一格
+            var pos = (typeof s.srcPos === 'number' ? s.srcPos : -1) + 1;
+            if(pos >= s.playUrls.length){ skipFailedSong(); return false; }
+            s.srcPos = pos;
+            var c = s.playUrls[pos];
+            if(!c.json){
+                curSrcLabel = c.label;
+                audio.src = c.u;
+                if(autoplay) armReadyPlay(tk);   // v1.20：等缓冲就绪再播，避免 302 中途「响一声」
+                return true;
+            }
+            s._advancing = true;
+            getText(c.u, function(raw){
+                s._advancing = false;
+                if(tk !== playToken) return;
+                var real = '';
+                try{
+                    var o = JSON.parse(raw) || {};
+                    real = o.url || (o.data && o.data.url) || '';
+                }catch(e){}
+                if(!real){ noteSrc(c.key, false); applyPlaySource(s, tk, autoplay); return; }
+                curSrcLabel = c.label;
+                audio.src = real;
+                if(autoplay) armReadyPlay(tk);   // v1.20：同上
+            }, 6000);
+            return true;
+        }
+
+        /** 从各种封面地址里抽出网易云的"图片 id"。
+            两种形态都要认：
+              · 接口地址  https://api.qijieya.cn/meting/?server=netease&type=pic&id=109951174206326909
+              · 直链地址  https://p1.music.126.net/qnQ93WnZHACVvIM14c4sAQ==/109951163984007061.jpg
+            图片 id 是取封面的唯一正确凭据 —— 网易云图片路径的文件名就是它。 */
+        function extractPicId(u){
+            var t = String(u || '');
+            var m = t.match(/[?&]id=(\d+)/);
+            if(m) return m[1];
+            m = t.match(/\/(\d{8,})\.(?:jpg|jpeg|png|webp)/i);
+            return m ? m[1] : '';
+        }
+
+        /**
+         * 取封面。按"谁知道真地址"分三级，而不是按"哪个域名先试"。
+         *
+         * 关键事实（实测）：网易云图片地址形如 p2.music.126.net/{hash}/{图片id}.jpg，
+         * 文件名是**图片 id**，不是歌曲 id。用歌曲 id 拼出来的地址一律 404：
+         *     types=pic&id=32701152（歌曲 id）        → p2.../32701152.jpg        → 404
+         *     types=pic&id=7954966627607511（图片 id）→ p2.../7954966627607511.jpg→ 200 / 16 KB
+         * 旧代码全程用歌曲 id，所以「按歌手搜索」来的歌封面时有时无 ——
+         * 搜索走 gdstudio，它返回的 pic_id 才是真凭据，但旧代码把它的
+         * JSON 响应地址（application/json）直接塞给了 img.src，必然失败；
+         * 兜底又退回用歌曲 id 猜，也是 404。歌单/排行榜走 Meting，地址里本身就带图片 id，
+         * 所以那条路一直正常。这就是"歌单有封面、搜索时好时坏"的全部原因。
+         *
+         * 三级策略：
+         *   1) s.picUrl 已解析过 → 直接用
+         *   2) s.picId（图片 id）→ 向 gdstudio 换真实地址（唯一"确定正确"的路径）
+         *   3) 兜底猜：s.pic 直连 / qijieya / injahow（每条 126.net 地址自动换 p1~p4 子域）
+         */
+        function applyCover(s, tk){
+            var img = $('pic').querySelector('img');
+            var picBox = $('pic');
+            // 封面按"初始网易云 id"取：换过词后 s.id 会变成歌词版本的 id，不能拿它当歌曲身份
+            var id = s._origId || s.urlId || s.id || '';
+            var picId = s.picId || extractPicId(s.pic);
+            var startedAt = Date.now();
+
+            function paint(u){
+                if(tk !== playToken) return;
+                s.picUrl = u;
+                img.onerror = function(){};
+                img.src = u;
+                img.style.display = 'block';
+                picBox.classList.remove('no-cover');
+            }
+            function fail(){
+                if(tk !== playToken) return;
+                img.style.display = 'none';
+                img.removeAttribute('src');
+                // 不再依赖外链 11.jpg（很多壳里根本没这个文件，结果就是个灰洞）
+                picBox.style.backgroundImage = 'none';
+                picBox.classList.add('no-cover');
+            }
+            /** 候选地址列表；每条 126.net 地址自动展开成 p1~p4 子域变体 */
+            function buildList(){
+                var list = [], seen = {};
+                function add(u){
+                    if(!u) return;
+                    var t = String(u);
+                    if(seen[t]) return;
+                    seen[t] = 1;
+                    list.push(t);
+                    var m = t.match(/^(https?:\/\/)p(\d)(\.music\.126\.net\/.+)$/);
+                    if(!m) return;
+                    for(var k=1;k<=4;k++){
+                        if(k === Number(m[2])) continue;
+                        var v = m[1] + 'p' + k + m[3];
+                        if(!seen[v]){ seen[v] = 1; list.push(v); }
+                    }
+                }
+                // gdstudio 的 pic 接口地址返回 JSON，不能当图片用，跳过
+                if(s.pic && !/gdstudio\.xyz/.test(s.pic)) add(s.pic);
+                if(id){
+                    add(SRC.qj.pic(id));
+                    add(SRC.ij.pic(id));
+                }
+                return list;
+            }
+            /** 预加载探测：成功才回调，避免把坏地址显示出来再闪一下 */
+            function probeList(list, cb){
+                var i = 0;
+                (function step(){
+                    if(tk !== playToken) return;
+                    if(i >= list.length || Date.now() - startedAt > 12000){ cb(''); return; }
+                    var u = list[i++];
+                    var p = new Image();
+                    p.onload = function(){ if(tk === playToken) cb(u); };
+                    p.onerror = function(){ step(); };
+                    p.src = u;
+                })();
+            }
+            /** 最后一搏：官方 song/detail（浏览器直连多半被 CORS 拦，聊胜于无） */
+            function lastResort(){
+                if(!id){ fail(); return; }
+                getText('https://music.163.com/api/song/detail?ids=%5B' + encodeURIComponent(id) + '%5D', function(txt){
+                    if(tk !== playToken) return;
+                    var u = '';
+                    try{
+                        var o = JSON.parse(txt) || {};
+                        var so = (o.songs && o.songs[0]) || {};
+                        u = (so.album && so.album.picUrl) || '';
+                    }catch(e){}
+                    if(!u){ fail(); return; }
+                    probeList([u], function(ok){ if(ok) paint(ok); else fail(); });
+                }, 6000);
+            }
+            function guess(){
+                probeList(buildList(), function(ok){
+                    if(ok){ paint(ok); return; }
+                    lastResort();
+                });
+            }
+
+            // 1) 上一轮已解析出真实地址
+            if(s.picUrl){
+                probeList([s.picUrl], function(ok){
+                    if(ok){ paint(ok); return; }
+                    s.picUrl = '';   // 缓存失效，重新解析
+                    guess();
+                });
+                return;
+            }
+            // 2) 有图片 id：先用 qijieya 的 pic 接口直接取。
+            //    它按图片 id 302 到真实图片地址，<img> 自动跟随跳转，不需要解析 JSON，
+            //    也不会撞上 gdstudio 的 Cloudflare 限流（实测连发会被 503，导致整批封面空白）。
+            if(picId){
+                probeList([SRC.qj.pic(picId)], function(ok){
+                    if(ok){ paint(ok); return; }
+                    // 2b) qijieya 这条路不通，再向 gdstudio 要真实地址（JSON）
+                    getText('https://music-api.gdstudio.xyz/api.php?types=pic&source=netease&id=' + encodeURIComponent(picId), function(txt){
+                        if(tk !== playToken) return;
+                        var u = '';
+                        try{ var o = JSON.parse(txt) || {}; u = o.url || (o.data && o.data.url) || ''; }catch(e){}
+                        if(!u){ guess(); return; }
+                        probeList([u], function(ok2){
+                            if(ok2){ paint(ok2); return; }
+                            guess();
+                        });
+                    }, 6000);
+                });
+                return;
+            }
+            // 3) 不知道图片 id：只能猜
+            guess();
+        }
+
+        /** gdstudio 的 lyric 接口返回 {"lyric":"[00:00.000]..."}，其余源返回裸 LRC 文本。 */
+        function parseLrcPayload(txt){
+            if(!txt) return '';
+            var t = String(txt);
+            if(t.indexOf('"lyric"') >= 0){
+                try{
+                    var o = JSON.parse(t);
+                    if(o && typeof o.lyric === 'string') return o.lyric;
+                }catch(e){}
+            }
+            return t;
+        }
+
+        /** 歌词拉取回退链：qijieya → injahow → gdstudio（后者返回 JSON）；全空时回调空数组 */
+        function fetchLrcChain(id, tk, cb){
+            if(!id){ cb([]); return; }
+            var chain = [SRC.qj.lrc(id), SRC.ij.lrc(id), SRC.gd.lrc(id)];
+            var pos = 0;
+            function next(){
+                if(tk !== undefined && tk !== playToken) return;
+                if(pos >= chain.length){ cb([]); return; }
+                var url = chain[pos++];
+                getText(url, function(txt){
+                    if(tk !== undefined && tk !== playToken) return;
+                    var l = parseLrc(parseLrcPayload(txt || ''));
+                    if(!l.length){ next(); return; }
+                    cb(l);
+                }, 7000);
+            }
+            next();
+        }
+
+        /** 播放时装载歌词（带"已应用记忆歌词"提示） */
+        function loadLyricForSong(s, tk){
+            var id = s.id || s._origId || '';
+            fetchLrcChain(id, tk, function(l){
+                if(tk !== playToken) return;
+                lrcLines = l;
+                lrcEls = [];      // 行数相同也要重建 DOM
+                refreshOffsetDisplay();
+                updateLrc(0);
+                checkLrcSync();
+                if(l.length && s._memInfo && (s._memInfo.name || s._memInfo.artist)){
+                    showStatus('已应用记忆歌词：' + (s._memInfo.name || '') + (s._memInfo.artist ? ' - ' + s._memInfo.artist : ''), true);
+                }
+            });
+        }
+        function loadDirect(list){
+            list = list || [];
+            // 补原始歌曲标识：_origId 始终指向最初加载的网易云 id（换词后 id 会变，但 _origId 不变），用作换词记忆的 key
+            for(var oi=0; oi<list.length; oi++){
+                if(list[oi] && list[oi]._origId === undefined) list[oi]._origId = list[oi].id || '';
+            }
+            songList = list;
+            renderList();
+            if(songList.length){
+                curIndex = 0;
+                showStatus('已加载 '+songList.length+' 首');
+                loadCurrent(true);   // 立即自动播放第一首；短歌/试听版会在播放时自动跳过
+            } else {
+                showStatus('列表为空');
+            }
+        }
+        var loadCurrent = function(autoplay){
+            var s = songList[curIndex];
+            if(!s){ showStatus('列表已播完'); return; }
+            if(autoplay) markWantPlay(true);       // 自动切歌/启动：期望播放，允许自愈
+            verifyingIndex = curIndex;
+            checkedLrcSync = false;   // 换歌重置同步检测
+            // 自动应用换词记忆：当前歌有记忆的歌词版本，且 id 仍是初始加载的原始 id（未换过词）→ 直接换到记忆歌词
+            // 记忆 key 用「歌名|歌手|原始ID」：同名同歌手多版本（原版/Live）精准区分，不同版本各自独立记忆、互不误用
+            var okey = (s.name || '') + '|' + (s.artist || '') + '|' + (s._origId || s.id || '');
+            var oid0 = s._origId || s.id || '';
+            if(okey && lyricMemory[okey] && lyricMemory[okey].id && s.id === oid0 && !s._lyricApplied){
+                var mem = lyricMemory[okey];
+                s._lyricApplied = true;
+                s._memInfo = mem;
+                s.id = mem.id;
+                // "已应用记忆歌词"提示在 playCurrent 歌词加载完成后显示（避免被过滤状态覆盖）
+            }
+            playCurrent(s, autoplay);
+        };
+        /** 一首歌的所有音源都失败后的收尾：多首时自动跳过，只剩一首时明确提示（不删空列表） */
+        function skipFailedSong(){
+            if(verifyingIndex < 0 || verifyingIndex >= songList.length) return;
+            if(songList.length > 1){
+                var i = verifyingIndex;
+                verifyingIndex = -1;
+                removeSong(i);
+                showStatus('全部音源均不可用，已自动跳过该曲');
+                setTimeout(function(){ loadCurrent(true); }, 300);
+            } else {
+                var s = songList[curIndex];
+                verifyingIndex = -1;
+                showStatus('《' + ((s && s.name) || '当前歌曲') + '》加载失败：三个音源均不可用，可换一首或换歌单', true);
+            }
+        }
+
+        audio.addEventListener('error', function(){
+            var cur = songList[curIndex];
+            // 先尝试同曲的其它音源（按健康度排序后的候选链）
+            if(cur && cur.playUrls && (cur.srcPos + 1) < cur.playUrls.length){
+                var bad = cur.playUrls[cur.srcPos];
+                if(bad) noteSrc(bad.key, false);      // 记一笔失败，下次这个源自动后置
+                var nxt = cur.playUrls[cur.srcPos + 1];
+                showStatus('「' + (cur.name || '当前歌曲') + '」当前音源不可用，切换备用音源：' + nxt.label, true);
+                applyPlaySource(cur, playToken, true);
+                return;
+            }
+            if(cur && cur.playUrls && cur.playUrls[cur.srcPos]) noteSrc(cur.playUrls[cur.srcPos].key, false);
+            // 播放过程中掉线：play 事件早已把 verifyingIndex 置 -1，skipFailedSong 会直接 return，
+            // 用户侧就是"声音没了、界面毫无反应"。这种情况不删歌，只给可见提示并允许重试。
+            if(verifyingIndex < 0){
+                showStatus('播放中断：「' + ((cur && cur.name) || '当前歌曲') + '」加载失败，点播放键可重试', true);
+                return;
+            }
+            skipFailedSong();
+        });
+        // 时长往往在 play 之后才就绪（play 时 audio.duration 还是 NaN），
+        // 只靠 play/ended 触发 checkLrcSync 会让"试听版不同步"的提示几乎永远不出现。
+        audio.addEventListener('loadedmetadata', function(){ checkLrcSync(); });
+        audio.addEventListener('canplay', function(){ checkLrcSync(); });
+        var rafId = null;
+        var raf = window.requestAnimationFrame || function(cb){ return setTimeout(cb, 60); };
+        var caf = window.cancelAnimationFrame || function(id){ clearTimeout(id); };
+        function lrcLoop(){
+            // 旧实现把重排放在函数尾部：updateLrc 里一旦抛异常，raf 链就永久断掉且 rafId 仍为非空，
+            // 之后再也不会重新启动 —— 表现为"歌词停在一句上不动，直到切歌"。
+            try{
+                updateLrc(audio.currentTime);
+            }catch(e){
+            }finally{
+                rafId = raf(lrcLoop);
+            }
+        }
+        audio.addEventListener('play', function(){
+            resumeTries = 0;              // 已成功出声，恢复重试预算
+            verifyingIndex = -1;
+            checkLrcSync();
+            if(!rafId) rafId = raf(lrcLoop);
+            reportPlaybackState();
+        });
+        audio.addEventListener('ended', function(){
+            markWantPlay(false);           // 先把自愈标记摘掉，避免 ended 前后的 pause 触发重播本曲末尾
+            if(rafId){ caf(rafId); rafId = null; }
+            setPicState('');
+            reportPlaybackState();
+            if(playMode === 1){
+                audio.currentTime = 0;
+                markWantPlay(true);
+                safePlay();
+            } else {
+                playNext();                // → loadCurrent(true) 会重新置回 true
+            }
+        });
+        audio.addEventListener('playing', function(){
+            setPlayIcon(true);
+            // 记一次"这个源确实能出声"，下次同源优先（只认真的播放成功，而不是"设了 src"）
+            var cur = songList[curIndex];
+            if(cur && cur.playUrls && cur.srcPos >= 0 && cur.playUrls[cur.srcPos]){
+                noteSrc(cur.playUrls[cur.srcPos].key, true);
+            }
+            setPicState('playing');
+            reportPlaybackState();
+        });
+        audio.addEventListener('pause', function(){
+            if(rafId){ caf(rafId); rafId = null; }
+            setPlayIcon(false);
+            setPicState('paused');
+            reportPlaybackState();
+            // 非用户主动的暂停（WebView 音频焦点被抢、系统省电策略、游离 audio 被回收等）
+            // 表现为「启动响一下就停」：延迟一小段自动续播，用户主动暂停时 wantAutoPlay 已是 false。
+            if(wantAutoPlay && audio.src && !audio.ended && !audio.error) scheduleResume(400);
+        });
+        audio.addEventListener('timeupdate', function(){
+            $('curTime').textContent = fmt(audio.currentTime);
+            $('totalTime').textContent = fmt(audio.duration);
+            var pct = audio.duration ? (audio.currentTime/audio.duration*100) : 0;
+            $('barPlayed').style.width = pct + '%';
+            try{ $('bar').setAttribute('aria-valuenow', String(Math.round(pct))); }catch(e){}
+            if(lrcLines.length) updateLrc(audio.currentTime);
+        });
+        // APP 切后台后 WebView 常会暂停媒体；回到前台且仍期望播放时自动续上
+        document.addEventListener('visibilitychange', function(){
+            if(!document.hidden && wantAutoPlay && audio.src && !audio.error && audio.paused) scheduleResume(250);
+        });
+
+        function toggleMode(){
+            playMode = (playMode+1) % 3;
+            setModeIcon(playMode);
+            $('modeBtn').title = modeLabels[playMode];
+            showStatus('播放模式：' + modeLabels[playMode]);
+        }
+
+        function getLrcIndex(rawPlayTime){
+            var t = rawPlayTime + curOffset();
+            var low = 0, high = lrcLines.length - 1, bestIdx = -1;
+            while(low <= high){
+                var mid = (low + high) >> 1;
+                if(lrcLines[mid].time <= t){
+                    bestIdx = mid;
+                    low = mid + 1;
+                } else {
+                    high = mid - 1;
+                }
+            }
+            // （旧版这里有一段 gap<0.25 的"提前切句"分支，二分查找下条件恒假、永不触发，已删）
+            return bestIdx;
+        }
+
+        /* 歌词行用 DOM 节点 + textContent 构建，不再拼 HTML 字符串。
+           原来的 escHtml 只转义 & < >，不转义引号 —— 在当前上下文（文本节点）是安全的，
+           但属于"刚好安全"：一旦有人把这段拼进属性或别的地方就会破。用 textContent 从根上消除这类风险，
+           顺带省掉一次 innerHTML 解析，长歌词插入更快。 */
+        function renderLrcList(){
+            lastLrcIdx = -1;
+            lastLrcTarget = 0;
+            clearLrcFit();
+            var box = $('lrcBox');
+            box.style.maxHeight = '';   // 清掉旧版"动态撑高"可能残留的内联值
+            var frag = document.createDocumentFragment();
+            for(var k=0;k<lrcLines.length;k++){
+                var d = document.createElement('div');
+                d.className = 'lrc-line';
+                d.setAttribute('data-i', String(k));
+                d.textContent = lrcLines[k].text || '♪';
+                frag.appendChild(d);
+            }
+            box.innerHTML = '';
+            box.appendChild(frag);
+            lrcEls = Array.prototype.slice.call(box.querySelectorAll('.lrc-line'));
+            // 新节点默认没有 tabindex，WebView 的原生焦点可能落到歌词文本上；
+            // disableLyricFocus 只在启动时跑过一次，这里补一次，保证"焦点在哪"与"框在哪"始终一致
+            disableLyricFocus();
+        }
+        var scrollRaf = null;
+        var lastLrcTarget = 0;       // 切句时算好的定位目标；同一句内不再读布局
+        /* 超长歌词（如小品《卖拐》整段台词）：容器高度恒定，不能撑高，就把当前句字号
+           按比例缩小，尽量让整句一次看全；缩到下限仍放不下时，容器内部可滚动查看，
+           绝不影响下方布局。只在切句时执行一次，不进每帧循环。 */
+        var fittedLrcEl = null;
+        function clearLrcFit(){
+            if(fittedLrcEl){
+                fittedLrcEl.style.fontSize = '';
+                fittedLrcEl.style.lineHeight = '';
+                fittedLrcEl = null;
+            }
+        }
+        function fitLongLyric(el, box){
+            clearLrcFit();
+            var viewH = box.clientHeight;
+            var pad = 12;
+            if(!viewH) return;
+            var rowH = el.offsetHeight;
+            if(rowH + pad <= viewH) return;            // 常规句子不动
+            var base = parseFloat(window.getComputedStyle(el).fontSize) || 14;
+            var minFs = 10;
+            var fs = Math.max(minFs, Math.floor(base * (viewH - pad) / rowH * 10) / 10);
+            for(var n = 0; n < 3; n++){
+                // 只缩字号、不动 line-height：行高保持 20px 整数、行盒仍是 24px 整数倍，
+                // 否则自定义的小数行高又会引入亚像素裁切。
+                el.style.fontSize = fs + 'px';
+                var h = el.offsetHeight;
+                if(h + pad <= viewH) break;
+                var next = Math.max(minFs, Math.floor(fs * (viewH - pad) / h * 10) / 10);
+                if(next >= fs || next <= minFs){ fs = minFs; el.style.fontSize = fs + 'px'; break; }
+                fs = next;
+            }
+            fittedLrcEl = el;
+        }
+        function smoothScrollTo(box, target){
+            // 上一段滚动动画必须先取消：连续切句时多个 raf 循环同时改 scrollTop 会抖动
+            if(scrollRaf){ caf(scrollRaf); scrollRaf = null; }
+            target = Math.round(target);       // 终值必须是整数，否则裁剪线落在半像素上
+            var start = box.scrollTop;
+            var diff = target - start;
+            if(Math.abs(diff) < 2){ box.scrollTop = target; return; }
+            var dur = 450, t0 = null;
+            function step(ts){
+                // 按时间戳推进，不按帧数：旧版 cur+=16 假设 60fps，120Hz 屏上动画会瞬跳
+                var now = (typeof ts === 'number') ? ts : Date.now();
+                if(t0 === null) t0 = now;
+                var p = Math.min(1, (now - t0) / dur);
+                var ease = p < 0.5 ? 4*p*p*p : 1 - Math.pow(-2*p+2,3)/2;   // easeInOutCubic
+                // 每帧也取整：动画过程中的小数 scrollTop 会让汉字被裁成上下两半
+                box.scrollTop = Math.round(start + diff * ease);
+                if(p < 1){ scrollRaf = raf(step); }
+                else { scrollRaf = null; box.scrollTop = target; }
+            }
+            scrollRaf = raf(step);
+        }
+        /* 当前句定位：容器高度恒定，绝不动态撑高（那会让下方控制区/歌单反复重排闪动，
+           句子极长时还会把 .p-fixed 顶出卡片）。先按比例缩小当前句字号让整句尽量看全；
+           缩到下限仍放不下就贴顶，从第一行开始完整可读，用户可在歌词区内下滑看完整句。
+
+           v1.11：把 scrollTop 吸附到「某一行的顶部边界」。三端 clientHeight 都是 24px
+           行盒的整数倍，行盒高度也都是整数，因此 scrollTop 取行顶时，容器上边缘与
+           下边缘都恰好落在行与行之间的空隙里 —— 汉字不会被横向裁成上下两半。 */
+        function lrcTargetScroll(box, curEl){
+            fitLongLyric(curEl, box);          // 只改当前句字号，不动容器高度
+            var rowH = curEl.offsetHeight || 0;
+            var pad = 12;                      // 上下 padding + 余量
+            var viewH = box.clientHeight;
+            var ideal;
+            if(rowH + pad > viewH){
+                ideal = Math.max(0, curEl.offsetTop - 6);   // 超长句：贴顶，从第一行完整开始
+            } else {
+                ideal = curEl.offsetTop - viewH/2 + rowH/2;
+                if(ideal < 0) ideal = 0;
+            }
+            // 吸附到最接近居中的「行顶边界」：clientHeight 是 24px 行盒的整数倍，
+            // 因此上下边缘都落在行间隙，常规歌词不会被裁成半截字。
+            // 极端长句换行时边缘仍可能压到字，由 .p-lrc 的上下渐隐遮罩淡出兜底。
+            var best = Math.round(ideal), bestDist = Infinity;
+            for(var i=0;i<lrcEls.length;i++){
+                var t = lrcEls[i].offsetTop;
+                var d = Math.abs(t - ideal);
+                if(d < bestDist){ bestDist = d; best = t; }
+            }
+            var maxScroll = Math.max(0, box.scrollHeight - viewH);
+            if(best > maxScroll) best = maxScroll;
+            return Math.round(best);
+        }
+        function updateLrc(playTime){
+            var box = $('lrcBox');
+            if(!lrcLines.length){
+                // 只在显示的不是"暂无歌词"占位时才重建（切歌/换词后 lrcEls 已清空，靠内容判断）
+                var first = box.querySelector('.lrc-line');
+                var isPlaceholder = box.children.length === 1 && first && first.textContent === '暂无歌词';
+                if(!isPlaceholder){
+                    clearLrcFit();
+                    box.style.maxHeight = '';
+                    box.innerHTML = '<div class="lrc-line far">暂无歌词</div>';
+                    lrcEls = [];
+                }
+                return;
+            }
+            if(lrcEls.length !== lrcLines.length) renderLrcList();
+            var idx = getLrcIndex(playTime);
+            if(idx < 0) idx = 0;
+            if(idx >= lrcLines.length) idx = lrcLines.length - 1;
+
+            var curEl = lrcEls[idx];
+            if(idx !== lastLrcIdx){
+                // 切句时才刷新高亮和滚动：原实现每帧（60fps）遍历全部歌词节点写 className，
+                // 长歌词会持续触发样式重算，是歌词滚动卡顿的主因
+                var i;
+                for(i=0;i<lrcEls.length;i++){
+                    var cls = 'lrc-line';
+                    if(i===idx) cls += ' cur';
+                    else if(Math.abs(i-idx)===1) cls += ' near';
+                    else cls += ' far';
+                    lrcEls[i].className = cls;
+                }
+                if(curEl){
+                    lastLrcTarget = lrcTargetScroll(box, curEl);
+                    smoothScrollTo(box, lastLrcTarget);
+                }
+                lastLrcIdx = idx;
+            } else if(curEl){
+                // 同一句但偏离过大（拖动进度条/切歌等）：用切句时缓存的目标直接定位。
+                // 这里绝不读布局、绝不改样式 —— 每帧重排会让歌词容器以下的部分闪动。
+                if(Math.abs(box.scrollTop - lastLrcTarget) > 80){ box.scrollTop = lastLrcTarget; }
+            }
+        }
+
+        function seekByClientX(clientX){
+            var r = $('bar').getBoundingClientRect();
+            if(!r.width) return;                 // 列表隐藏/布局未完成时宽度为 0，会把 ratio 算成 Infinity
+            var ratio = (clientX - r.left) / r.width;
+            if(ratio < 0) ratio = 0;
+            if(ratio > 1) ratio = 1;
+            if(audio.duration) audio.currentTime = ratio * audio.duration;
+        }
+        /* 进度条：点按 + 拖动。
+           旧实现只监听 click / touchstart，标题却写着"拖动调整播放进度" —— 手指拖动时既不会 seek
+           也不会阻止页面滚动，真机上表现为"一拖整页跟着上下滑"。 */
+        (function(){
+            var bar = $('bar');
+            var dragging = false;
+            function pointX(e){
+                var t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]);
+                return t ? t.clientX : e.clientX;
+            }
+            function down(e){
+                if(pointX(e) === undefined) return;
+                dragging = true;
+                seekByClientX(pointX(e));
+            }
+            function move(e){
+                if(!dragging) return;
+                if(e.cancelable) e.preventDefault();   // 拖动时不要让页面/列表跟着滚
+                seekByClientX(pointX(e));
+            }
+            function up(){ dragging = false; }
+            bar.addEventListener('mousedown', down, false);
+            bar.addEventListener('touchstart', down, { passive: true });
+            document.addEventListener('mousemove', move, false);
+            document.addEventListener('touchmove', move, { passive: false });
+            document.addEventListener('mouseup', up, false);
+            document.addEventListener('touchend', up, false);
+            document.addEventListener('touchcancel', up, false);
+            bar.addEventListener('click', function(e){
+                if(dragging) return;               // 拖动结束的那次 click 已经在 move 里 seek 过了
+                seekByClientX(e.clientX);
+            }, false);
+        })();
+
+        function loadPlaylist(){
+            var id = parsePlaylistId($('playlistId').value);
+            if(!id){ showStatus('请输入有效的歌单ID或链接'); return; }
+            hideError();
+            hideKb();
+            showStatus('正在加载 '+id+' ...');
+            // 歌单/排行榜：qijieya 主源 + injahow 镜像并行抢占，先返回非空结果的胜出
+            //（gdstudio 无歌单接口，不参与）
+            var done = false;
+            // 两家都支持歌单，按健康度排序：上次成功的那家先试，减少"先撞一次挂掉的源"的空等
+            var plan = [
+                { key: 'ij', label: SRC.ij.label, url: SRC.ij.playlist(id) },
+                { key: 'qj', label: SRC.qj.label, url: SRC.qj.playlist(id) }
+            ].sort(function(a, b){ return srcScore(b.key) - srcScore(a.key); });
+            var pending = plan.length;
+            function finishEmpty(){
+                if(done) return;
+                done = true;
+                showError('歌单加载失败，请确认是有效的歌单/排行榜ID，或换一首/换源');
+            }
+            for(var p=0;p<plan.length;p++){
+                (function(src){
+                    getText(src.url + '&r=' + Math.random(), function(raw){
+                        if(done) return;
+                        var a = parseMeting(raw);
+                        if(a.length){
+                            done = true;
+                            noteSrc(src.key, true);
+                            showStatus('已加载歌单 '+a.length+' 首（来源：'+src.label+'）', true);
+                            loadDirect(a);
+                            return;
+                        }
+                        noteSrc(src.key, false);
+                        if(--pending <= 0) finishEmpty();
+                    }, 6000);
+                })(plan[p]);
+            }
+        }
+        /* 用歌曲ID加载单曲。
+           旧实现是空壳：只打一句提示就转去 loadPlaylist()，而歌单接口拿到歌曲 id 必然返回空，
+           于是"粘贴歌曲分享链接"永远只会得到"歌单加载失败"。
+           这里真正走一次官方 song/detail（封面回退链里本来就在用同一个接口），失败再交给 onFail。 */
+        function loadSongById(id, onFail){
+            if(!id){ if(typeof onFail === 'function') onFail(); return; }
+            showStatus('正在按歌曲ID加载：' + id + ' ...');
+            getText('https://music.163.com/api/song/detail?ids=%5B' + encodeURIComponent(id) + '%5D', function(raw){
+                var list = parseNeteaseSongs(raw);
+                if(list.length){ hideError(); loadDirect(list); return; }
+                showStatus('未取到该歌曲，按歌单/排行榜再试：' + id);
+                if(typeof onFail === 'function') onFail(); else loadPlaylist();
+            }, 6000);
+        }
+
+        var searchSeq = 0;
+        // 解析 Meting 风格返回（qijieya / injahow 通用）：[{name,artist,url,pic}]
+        // url 字段里带的是同源 url 接口地址，这里只取其中的歌曲 id，播放/歌词统一按 id 走候选链
+        // （原结构里的 lrc / dur 字段从来没有被读取过：歌词按 id 重新拉，时长以 audio 元数据为准，已删）
+        function parseMeting(raw){
+            var items = [];
+            try{
+                var arr = JSON.parse(raw);
+                if(Object.prototype.toString.call(arr) !== '[object Array]') return items;
+                for(var i=0;i<arr.length;i++){
+                    var s = arr[i];
+                    if(!s) continue;
+                    var name = s.name || s.title || '';
+                    var artist = s.artist || s.author || '';
+                    if(Object.prototype.toString.call(artist) === '[object Array]') artist = artist.join('/');
+                    var rawUrl = s.url || '';
+                    var m = rawUrl.match(/id=(\d+)/);
+                    var qid = m ? m[1] : (s.id ? String(s.id) : '');
+                    if(!qid) continue;
+                    var mp = s.pic || '';
+                    items.push({
+                        id: qid, urlId: qid, name: name, artist: artist,
+                        url: SRC.qj.url(qid),
+                        pic: mp,
+                        picId: extractPicId(mp)   // Meting 的 pic 地址里带的就是图片 id
+                    });
+                }
+            }catch(e){}
+            return items;
+        }
+
+        // 解析 gdstudio 搜索结果（artist 为数组，封面要用 pic_id）
+        function parseGdstudio(raw){
+            var items = [];
+            try{
+                var arr = JSON.parse(raw);
+                if(Object.prototype.toString.call(arr) !== '[object Array]') return items;
+                for(var i=0;i<arr.length;i++){
+                    var s = arr[i];
+                    if(!s) continue;
+                    var artist = s.artist;
+                    if(Object.prototype.toString.call(artist) === '[object Array]') artist = artist.join('/');
+                    var id = String(s.url_id || s.id || '');
+                    if(!id) continue;
+                    // pic_id 是这张专辑图的图片 id，取封面必须用它（用歌曲 id 拼必 404）。
+                    // 不再把 SRC.gd.pic() 的 JSON 地址塞进 pic —— 那是 application/json，img 加载不了。
+                    var picId = s.pic_id ? String(s.pic_id) : '';
+                    items.push({
+                        id: id, urlId: String(s.url_id || id),
+                        name: s.name || '', artist: artist || '',
+                        url: SRC.qj.url(id),
+                        pic: '',
+                        picId: picId
+                    });
+                }
+            }catch(e){}
+            return items;
+        }
+        // 网易云官方接口的单曲 → 内部曲目结构（播放/歌词走候选链）
+        // 注意：官方 search/song/detail 的 album 里只有 picId（长数字，就是网易云图片 id），
+        //       没有 picUrl。必须把 picId 原样交给 applyCover 走 qijieya pic 直连，
+        //       否则封面会退化成"拿歌曲 id 瞎猜"，出现整批空白。
+        function songItemFromNetease(s){
+            if(!s || !s.id) return null;
+            var id = String(s.id);
+            var artist = '';
+            if(s.artists && s.artists.length){
+                var ar = [];
+                for(var k=0;k<s.artists.length;k++){ if(s.artists[k] && s.artists[k].name) ar.push(s.artists[k].name); }
+                artist = ar.join('/');
+            }
+            var cp = (s.album && s.album.picUrl) || '';
+            var pid = '';
+            if(s.album && s.album.picId) pid = String(s.album.picId);
+            else pid = extractPicId(cp);
+            return { id: id, urlId: id, name: s.name || '', artist: artist,
+                     url: SRC.qj.url(id),
+                     pic: cp,
+                     picId: pid };
+        }
+        // 兼容 {songs:[…]}（song/detail）与 {result:{songs:[…]}}（search）两种返回
+        function parseNeteaseSongs(raw){
+            var items = [];
+            try{
+                // 官方接口的 album.picId 是 19 位十进制数字，JSON.parse 会按 IEEE754 双精度
+                // 丢掉末尾几位（实测 109951163038292176 → 109951163038292180），图片 id 一错
+                // 封面就会整批空白。解析前先把超长数字字段加上引号变成字符串。
+                var safe = String(raw || '').replace(/("picId"\s*:\s*)(\d{15,})/g, '$1"$2"');
+                var o = JSON.parse(safe) || {};
+                var songs = o.songs || (o.result && (o.result.songs || o.result.tracks)) || [];
+                for(var i=0;i<songs.length;i++){
+                    var it = songItemFromNetease(songs[i]);
+                    if(it) items.push(it);
+                }
+            }catch(e){}
+            return items;
+        }
+        /* 搜索源优先级（用户指定：官方优先，qijieya 兜底）：
+           1) 网易云官方 web 搜索 —— 数据最全，一次上限 100 首，且带专辑 picId（封面更准）。
+              但它没有 Access-Control-Allow-Origin，浏览器直连常被 CORS 拦；加 callback 还会
+              触发风控 code -462。所以只给它一个很短的「优先窗口」：窗口内拿到结果就优先采用，
+              失败/空结果立刻放行备源，慢网络挂起也最多只等 1200ms，不拖慢搜索。
+           2) qijieya（主备源）与 gdstudio 并行竞速，谁先给出有效列表谁生效。
+           injahow 镜像不支持 search。播放/歌词/封面按歌曲 id 走候选链，与搜索来源无关。 */
+        var SEARCH_PRIORITY_WAIT = 1200;
+        function searchMulti(kw, cb){
+            var done = false;
+            function finish(list){ if(!done){ done = true; cb(list); } }
+            var busy = 0, backupStarted = false;
+            function trySource(url, parser){
+                if(!url || done) return;
+                busy++;
+                getText(url, function(raw){
+                    busy--;
+                    if(done) return;
+                    var a = parser(raw);
+                    if(a.length){ finish(a); return; }
+                    if(busy <= 0 && backupStarted) finish([]);
+                }, 7000);
+            }
+            /** 放行备源：官方失败、空结果或超时都会调用，重复调用由 backupStarted 守卫 */
+            function startBackup(){
+                if(backupStarted || done) return;
+                backupStarted = true;
+                trySource(SRC.qj.search(kw) + '&r=' + Math.random(), parseMeting);
+                trySource(SRC.gd.search(kw), parseGdstudio);
+            }
+            var q = encodeURIComponent(kw);
+            // 1) 官方源先跑：拿到有效列表就立刻采用，否则马上放行备源
+            getText('https://music.163.com/api/search/get/web?csrf_token=&s=' + q +
+                    '&type=1&offset=0&total=true&limit=100', function(raw){
+                if(done) return;
+                var a = parseNeteaseSongs(raw);
+                if(a.length) finish(a);
+                else startBackup();
+            }, 7000);
+            // 2) 优先窗口到点：官方还没回来就并行放行备源（CORS 挂起/网络慢时不白等）
+            setTimeout(startBackup, SEARCH_PRIORITY_WAIT);
+            // 3) 全部失败兜底：9 秒后无结果则返回空（避免无限等待）
+            setTimeout(function(){ finish([]); }, 9000);
+        }
+        function searchSongs(){
+            var kw = $('playlistId').value.trim();
+            if(!kw){ showStatus('请输入歌名或歌手关键词'); return; }
+            hideError();
+            hideKb();
+            // 纯数字或含 id= 的输入 → 按 ID 加载（歌曲链接走单曲，其余走歌单/榜单）
+            if(/^\d+$/.test(kw) || /id=\d+/.test(kw)){
+                if(loadByIdInput(kw)) return;
+            }
+            var my = ++searchSeq;
+            showStatus('正在搜索：“'+kw+'” …… 请稍候');
+            searchMulti(kw, function(list){
+                if(my !== searchSeq) return;
+                // v1.15：showError 已复用同一个弹窗，不能再调 showStatus('') 把它清掉
+                if(!list || !list.length){ showError('搜索接口暂时繁忙，请稍后重试（或使用歌单/排行榜）'); return; }
+                loadDirect(list);
+            });
+        }
+
+        function changeLyric(){
+            var s = songList[curIndex];
+            if(!s) return;
+            var targetIdx = curIndex;   // 锁定目标歌：搜索候选期间若用户切换了歌曲，curIndex 会变，必须锁定原歌，否则记忆 key 会写错
+            var kw = (s.name || '').trim();
+            var artist = (s.artist || '').trim();
+            if(!kw){ showStatus('无法获取歌曲信息'); return; }
+            var baseName = kw.toLowerCase();
+            var baseArtist = artist.toLowerCase();
+            // 歌名 + 歌手 同时匹配：搜索词用「歌名 歌手」更精准，候选再按歌名和歌手双重筛选
+            var searchKw = kw + (artist ? ' ' + artist : '');
+            showStatus('正在搜索可用歌词...');
+            searchMulti(searchKw, function(list){
+                if(!list || !list.length){ showStatus('未找到候选歌词，可试手动输入ID'); return; }
+                var candidates = [];
+                for(var i=0; i<list.length && candidates.length<10; i++){
+                    var r = list[i];
+                    var nm = r.name || r.title || '';
+                    var ar = r.artist || r.author || '';
+                    var songId = r.id || '';
+                    if(!songId) continue;
+                    // 歌名归一化（去掉 "(Live)" 等括号后缀）后比较；必须匹配当前歌名
+                    var nmBase = nm.toLowerCase().replace(/[（(].*?[)）]/g, '').trim();
+                    if(nmBase.indexOf(baseName) < 0 && baseName.indexOf(nmBase) < 0) continue;
+                    // 歌手必须匹配：当前歌手按 "/" 拆分成多名（如 黄绮珊/韩红），候选歌手含任意一名即保留（兼容合唱与单版）
+                    if(baseArtist){
+                        var parts = baseArtist.split('/').map(function(x){ return x.trim(); }).filter(Boolean);
+                        var arL = ar.toLowerCase();
+                        var matchedArtist = false;
+                        for(var p=0; p<parts.length; p++){
+                            if(parts[p] && arL.indexOf(parts[p].toLowerCase()) >= 0){ matchedArtist = true; break; }
+                        }
+                        if(!matchedArtist) continue;
+                    }
+                    candidates.push({ name: nm, artist: ar, songId: songId });
+                }
+                if(!candidates.length){ showStatus('未找到可用歌词源，可试手动输入ID'); return; }
+                // 必须把锁定 targetIdx 传下去：搜索耗时数秒，期间用户切歌后 curIndex 已变，
+                // 旧版漏传导致新歌词与记忆 key 被写到刚切换的歌上（换错歌）
+                showLyricPicker(candidates, targetIdx);
+            });
+        }
+
+        function showLyricPicker(candidates, targetIdx){
+            var list = $('pickerList');
+            $('pickerBody').style.display = 'none';   // 复位：上一轮可能是"输入ID"模式
+            list.style.display = '';
+            var html = '';
+            for(var i=0;i<candidates.length;i++){
+                html += '<div class="picker-item" tabindex="0" data-idx="'+i+'">'+
+                        '<div class="pn"><span class="pno"></span><span class="pt"></span></div>'+
+                        '<div class="pa"></div></div>';
+            }
+            list.innerHTML = html;
+            var items = list.querySelectorAll('.picker-item');
+            for(var k=0;k<items.length;k++){
+                (function(el, i){
+                    el.querySelector('.pno').textContent = (i+1) + '.';   // 标题前数字序号
+                    el.querySelector('.pt').textContent = candidates[i].name;
+                    el.querySelector('.pa').textContent = candidates[i].artist;
+                    el.onclick = function(){ applyLyricById(candidates[i].songId, candidates[i].name, candidates[i].artist, targetIdx); };
+                    el.onkeydown = function(ev){
+                        if(ev.key==='Enter' || ev.keyCode===13){
+                            if(ev.preventDefault) ev.preventDefault();
+                            if(ev.stopPropagation) ev.stopPropagation();
+                            applyLyricById(candidates[i].songId, candidates[i].name, candidates[i].artist, targetIdx);
+                        }
+                    };
+                })(items[k], k);
+            }
+            hideKb();   // 弹窗打开时收起键盘，避免键盘盖住候选列表
+            pickerAnchor = focusEl;
+            pickerAnchorKey = focusKey;   // 稳定键：弹窗打开前的控件若被重建，也能按它找回来
+            $('pickerMask').className = 'picker-mask show';
+            $('pickerHeadTitle').textContent = '选择正确的歌词版本';
+            $('pickerFoot').style.display = '';
+            notifyPicker(true);
+            remoteReset();
+            var first = remoteCollect();
+            if(first.length) remoteFocus(first[0].el);
+        }
+
+        function closePicker(){
+            $('pickerMask').className = 'picker-mask';
+            $('pickerFoot').style.display = '';
+            // 复位"选择列表 / 输入ID"两种模式，否则下次打开会残留上一次的形态
+            $('pickerBody').style.display = 'none';
+            $('pickerList').style.display = '';
+            $('btnManualLrc').style.display = '';
+            $('btnSubmitLrc').style.display = 'none';
+            hideKb();
+            notifyPicker(false);
+            var anchor = pickerAnchor;
+            var anchorKey = pickerAnchorKey;
+            pickerAnchor = null;
+            pickerAnchorKey = '';
+            remoteReset();
+            // 关闭弹窗后把焦点还给打开弹窗前的控件，避免回退到页面第一项；
+            // 该控件已被重建（DOM 引用失效）时按稳定键找回，不让焦点留空
+            // 同步恢复：此时 DOM 已稳定，不需要延时；延时反而会在焦点空窗期吞掉一次按键
+            if(anchor && document.body.contains(anchor) && remoteVisible(anchor)){
+                remoteFocus(anchor);
+            } else {
+                restoreFocus(anchorKey || focusKey);
+            }
+        }
+
+        function showBoardPicker(){
+            var sel = $('boardSel');
+            var opts = [];
+            for(var i=0;i<sel.options.length;i++){ if(sel.options[i].value) opts.push(sel.options[i]); }
+            if(!opts.length) return;
+            var list = $('pickerList');
+            $('pickerBody').style.display = 'none';   // 复位：上一轮可能是"输入ID"模式
+            list.style.display = '';
+            var html = '';
+            for(var k=0;k<opts.length;k++){
+                html += '<div class="picker-item" tabindex="0"><div class="pn"></div><div class="pa"></div></div>';
+            }
+            list.innerHTML = html;
+            var items = list.querySelectorAll('.picker-item');
+            for(var k=0;k<items.length;k++){
+                (function(el, o){
+                    el.querySelector('.pn').textContent = o.textContent;
+                    // v1.7.8：已选中的那一行明确标出来（焦点框之外再加文字提示）
+                    el.querySelector('.pa').textContent = (o.value === sel.value) ? '✓ 当前选中' : '点击加载该排行榜';
+                    el.onclick = function(){
+                        closePicker();
+                        sel.value = o.value;
+                        loadBoard();
+                    };
+                })(items[k], opts[k]);
+            }
+            $('pickerHeadTitle').textContent = '选择排行榜';
+            $('pickerFoot').style.display = 'none';
+            hideKb();   // 弹窗打开时收起键盘，避免键盘盖住候选列表
+            pickerAnchor = focusEl;
+            pickerAnchorKey = focusKey;   // 稳定键：弹窗打开前的控件若被重建，也能按它找回来
+            $('pickerMask').className = 'picker-mask show';
+            notifyPicker(true);
+            remoteReset();
+            // v1.7.8：打开时焦点直接落在"当前已选中的排行榜"那一行，而不是永远的第一行。
+            // 真机反馈：上下键能移动，但每次打开都从第一行开始，焦点停不到已选中项上。
+            var selIdx = 0;
+            for(var s=0;s<opts.length;s++){ if(opts[s].value === sel.value){ selIdx = s; break; } }
+            var collected = remoteCollect();
+            if(collected.length) remoteFocus(items[selIdx] || collected[0].el);
+        }
+
+        function applyLyricById(songId, name, artist, targetIdx){
+            if(!songId) return;
+            closePicker();
+            // 用锁定/传入的目标歌索引；缺省回退到当前播放歌（手动输入ID路径）
+            var idx = (typeof targetIdx === 'number' && songList[targetIdx]) ? targetIdx : curIndex;
+            if(!songList[idx]) return;
+            var target = songList[idx];
+            // 记忆 key 用「歌名|歌手|原始ID」：同名同歌手有多个版本（如刘欢《少年壮志不言愁》原版/Live版），
+            // 必须按原始网易云 id 精准区分，避免所有同名版本共享同一份记忆导致某些版本歌词不适配
+            var origKey = (target.name || '') + '|' + (target.artist || '') + '|' + (target._origId || target.id || '');
+            target.id = songId;   // 只换歌词 id；播放地址仍按 urlId/_origId 走，不动当前音频
+            // 换词结果自动记忆：key 用「歌名|歌手|原始ID」（同名同歌手多版本按原始网易云 id 精准区分），下次播放同曲自动应用
+            if(origKey){
+                lyricMemory[origKey] = { id: songId, name: name || '', artist: artist || '' };
+                saveLyricMemory();
+            }
+            var k = offsetKey(target);
+            if(songOffsets[k] !== undefined){ delete songOffsets[k]; saveOffsets(); }
+            // 换词前立即清空旧歌词，避免新歌词异步加载期间残留上一版歌词
+            showStatus('正在加载歌词...');
+            lrcLines = [];
+            lrcEls = [];          // 行数相同的两个版本也必须重建 DOM，否则仍显示旧文本
+            refreshOffsetDisplay();
+            updateLrc(0);
+            var ltk = playToken;
+            fetchLrcChain(songId, ltk, function(l){
+                if(ltk !== playToken) return;
+                lrcLines = l;
+                refreshOffsetDisplay();
+                updateLrc(audio.currentTime);
+                checkedLrcSync = false;   // 换的是新歌词版本，需重新做"试听版不同步"校验
+                checkLrcSync();
+                if(l.length){
+                    showStatus('歌词已更换为：' + name + (artist ? ' - '+artist : ''), true);
+                } else {
+                    showStatus('该版本无歌词，可换一个或手动输入ID', true);
+                }
+            });
+        }
+
+        function downloadCurrent(){
+            var s = songList[curIndex];
+            if(!s) return;
+            var u = audio.src;
+            // 只放行 http(s)：audio.src 的值来自第三方接口返回的 JSON（gdstudio / Meting），
+            // 直接交给原生 DownloadManager 之前必须卡协议，否则 file:// / content:// 之类会被原样接受。
+            // （旧写法里的 u.indexOf('blob:')===0 是死条件：能进到这一行就说明已经以 http 开头了。）
+            if(!/^https?:\/\//i.test(u || '')){
+                showStatus('请先播放歌曲后再下载'); return;
+            }
+            var base = (s.name || '歌曲').replace(/[\\/:*?"<>|]/g, '_');
+            var ar = (s.artist || '').replace(/[\\/:*?"<>|]/g, '_');
+            var fname = (base + (ar ? ' - ' + ar : '')) + '.mp3';
+            showStatus('正在下载：' + base + (ar ? ' - ' + ar : '') + ' ...', true);
+            // Android 外壳提供原生下载桥接：直接交给系统 DownloadManager 保存到「下载」目录
+            if (window.Yanzi && typeof window.Yanzi.downloadFile === 'function') {
+                try { window.Yanzi.downloadFile(u, fname); return; } catch(e){ showStatus('原生下载调用失败，尝试浏览器方式', true); }
+            }
+            // 浏览器回退：优先 fetch blob 真正保存文件；网易云 CDN 无 CORS 时会失败，退回新标签打开（可手动另存）
+            fetch(u, { mode: 'cors' }).then(function(r){
+                if(!r.ok) throw new Error('http ' + r.status);
+                return r.blob();
+            }).then(function(b){
+                var blobUrl = URL.createObjectURL(b);
+                var a = document.createElement('a');
+                a.href = blobUrl;
+                a.download = fname;
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(blobUrl); }, 200);
+                showStatus('已下载：' + base + (ar ? ' - ' + ar : '') + '（VIP/付费歌为30秒试听版）', true);
+            }).catch(function(){
+                // 不再用 a.target='_blank' 兜底：WebView 未开启多窗口时，这个动作要么什么都不发生，
+                // 要么把当前页面导航走 —— 后者会直接毁掉正在播放的会话。
+                // 改为"给出可复制的直链"，让用户自己决定怎么处理。
+                copyText(u);
+                showStatus('该音频不允许直接保存，已复制音频直链（可粘贴到浏览器下载）：' + base, true);
+            });
+        }
+
+        /** 复制到剪贴板：优先异步 API，失败退回 textarea + execCommand（老 WebView 只有后者） */
+        function copyText(txt){
+            try{
+                if(navigator.clipboard && navigator.clipboard.writeText){
+                    navigator.clipboard.writeText(txt).catch(function(){ legacyCopy(txt); });
+                    return;
+                }
+            }catch(e){}
+            legacyCopy(txt);
+        }
+        function legacyCopy(txt){
+            try{
+                var ta = document.createElement('textarea');
+                ta.value = txt;
+                ta.setAttribute('readonly', 'readonly');
+                ta.style.position = 'fixed';
+                ta.style.top = '-1000px';
+                document.body.appendChild(ta);
+                ta.select();
+                ta.setSelectionRange(0, txt.length);
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+            }catch(e){}
+        }
+
+        /* 手动输入歌曲ID：改用弹层里的输入框，不再用 prompt()。
+           prompt() 需要宿主实现 WebChromeClient.onJsPrompt()，没实现的壳里直接返回 null —— 功能静默失效；
+           电视上更不可能有原生输入框。这里复用现成的 picker 弹层与焦点系统。 */
+        function manualLyricById(){
+            var s = songList[curIndex];
+            var list = $('pickerList');
+            list.innerHTML = '';
+            list.style.display = 'none';
+            $('pickerBody').style.display = '';
+            $('pickerHeadTitle').textContent = '输入正确的网易云歌曲ID';
+            $('pickerFoot').style.display = '';
+            // 这个模式下"手动输入歌曲ID"没意义（已经在输入了），换成"确定"
+            $('btnManualLrc').style.display = 'none';
+            $('btnSubmitLrc').style.display = '';
+            var inp = $('lrcIdInput');
+            inp.value = s ? (s._origId || s.id || '') : '';
+            pickerAnchor = focusEl;
+            pickerAnchorKey = focusKey;
+            $('pickerMask').className = 'picker-mask show';
+            notifyPicker(true);
+            remoteReset();
+            if(isTv){
+                // 电视：焦点给输入框但不做真实 focus（避免遥控器一进来就弹键盘），确认键再弹
+                var items = remoteCollect();
+                var target = null;
+                for(var i = 0; i < items.length; i++){ if(items[i].el === inp){ target = items[i].el; break; } }
+                remoteFocus(target || (items.length ? items[0].el : null));
+            } else {
+                try{ inp.focus(); showKb(); }catch(e){}
+            }
+        }
+
+        /** 提交弹层里的歌曲ID（回车 / 确认键 / 点"确定"） */
+        function submitLyricId(){
+            var inp = $('lrcIdInput');
+            var raw = (inp.value || '').trim();
+            var m = raw.match(/id=(\d+)/);
+            var id = m ? m[1] : raw;
+            if(!/^\d+$/.test(id)){ showStatus('ID格式不正确，应为纯数字（或粘贴含 id= 的链接）'); return; }
+            var s = songList[curIndex];
+            hideKb();
+            applyLyricById(id, s ? (s.name || '') : '', s ? (s.artist || '') : '');
+        }
+
+        /** 按输入内容分流：歌曲链接 → 单曲；歌单链接/排行榜/裸数字 → 歌单（裸数字大概率是歌单ID，保持原来的快路径） */
+        function loadByIdInput(raw){
+            var pid = parsePlaylistId(raw);
+            if(!pid) return false;
+            if(/\/song|song\?id=|song%3Fid%3D/i.test(raw)){
+                loadSongById(pid, function(){ loadPlaylist(); });
+            } else {
+                showStatus('按ID加载：' + pid + ' ...');
+                loadPlaylist();
+            }
+            return true;
+        }
+
+        function loadOrSearch(){
+            var v = $('playlistId').value.trim();
+            if(!v){ showStatus('请输入歌单ID/链接，或歌名/歌手关键词'); return; }
+            hideKb();   // 搜索动作一旦发起就收起键盘，避免键盘遮挡歌单、焦点环错位
+            if(loadByIdInput(v)) return;
+            searchSongs();
+        }
+
+        function loadStartSong(){
+            // 启动直接播放排行榜「热歌榜」(3778678)：下拉框与输入框同步选中，
+            // 复用歌单加载链（loadPlaylist → loadDirect 会自动播放第一首）。
+            var HOT_BOARD_ID = '3778678';
+            $('playlistId').value = HOT_BOARD_ID;
+            if($('boardSel')) $('boardSel').value = HOT_BOARD_ID;
+            loadPlaylist();
+            // 兜底：两个歌单源都超时/失败时，用默认单曲保证启动有声。
+            // 7s 是避开 getText 的 6s 超时；期间用户已自行加载出列表就不再插手。
+            setTimeout(function(){
+                if(songList.length || !DEFAULT_START || !DEFAULT_START.id) return;
+                hideError();
+                var d = DEFAULT_START;
+                loadDirect([{ name: d.name, artist: d.artist || '',
+                              id: d.id, urlId: d.id, url: SRC.qj.url(d.id),
+                              pic: d.pic || '', picId: extractPicId(d.pic) }]);
+            }, 7000);
+        }
+
+        function loadBoard(){
+            var id = $('boardSel').value;
+            if(!id){ showStatus('请先选择一个排行榜'); return; }
+            $('playlistId').value = id;
+            loadPlaylist();
+        }
+
+        /* ===== 电视 / 遥控器焦点系统：原生层接管方向键与确认键，页面按分组维护焦点；
+                 歌词显示区与歌词工具栏对遥控器完全禁焦。手机触屏逻辑不受影响 ===== */
+        var isTv = false;
+        var focusEl = null;
+        var pickerAnchor = null;
+        /* v1.7.6：焦点的稳定标识。此前只记 focusEl 这个 DOM 引用，列表/歌词一旦重建
+           引用即成悬空，所有方向键移动都会退化成"跳到第一个元素"（真机表现：焦点弹回搜索框）。
+           focusKey 用可跨重建对应的选择器字符串表示，重建后能精确找回同一个控件。 */
+        var focusKey = '';
+        var pickerAnchorKey = '';
+
+        function remoteVisible(el){ return !!el && el.offsetParent !== null; }
+
+        function elIndexIn(el, sel){
+            var n = document.querySelectorAll(sel);
+            for(var i=0;i<n.length;i++){ if(n[i] === el) return i; }
+            return 0;
+        }
+
+        // DOM 元素 → 稳定键：'#playlistId' / 'li:3' / 'pbtn:2' / 'lrc:1' / 'chg' / 'pk:0'
+        function focusKeyOf(el){
+            if(!el || !el.tagName) return '';
+            if(el.id) return '#' + el.id;
+            var c = el.classList;
+            if(!c) return '';
+            if(c.contains('li')) return 'li:' + (el.getAttribute('data-idx') || '');
+            if(c.contains('picker-item')) return 'pk:' + elIndexIn(el, '.picker-item');
+            if(c.contains('p-btn')) return 'pbtn:' + elIndexIn(el, '.p-btn');
+            if(c.contains('lrc-btn')) return 'lrc:' + elIndexIn(el, '.lrc-btn');
+            if(c.contains('change-btn')) return 'chg';
+            return '';
+        }
+
+        // 稳定键 → 当前 DOM 元素（列表行按 data-idx 精确对应，不依赖节点顺序）
+        function findByFocusKey(key){
+            if(!key) return null;
+            if(key.charAt(0) === '#') return document.getElementById(key.slice(1));
+            // v1.7.8：'chg' 是不带冒号的键（搜歌按钮），旧实现只走 indexOf(':') 分支，
+            // 解析必失败 → restoreFocus 退到搜索框。真机表现：按下搜歌、列表重建后
+            // 焦点自己跳回搜索框（按 OK 功能是好的，只是焦点位置被打断）。
+            if(key === 'chg') return document.querySelector('.change-btn');
+            var i = key.indexOf(':');
+            if(i < 0) return null;
+            var p = key.slice(0, i), v = key.slice(i + 1);
+            var sel = p === 'li' ? '.p-list .li'
+                    : p === 'pk' ? '.picker-item'
+                    : p === 'pbtn' ? '.p-btn'
+                    : p === 'lrc' ? '.lrc-btn'
+                    : p === 'chg' ? '.change-btn' : '';
+            if(!sel) return null;
+            var n = document.querySelectorAll(sel);
+            if(!n.length) return null;
+            if(p === 'li'){
+                for(var k=0;k<n.length;k++){ if(n[k].getAttribute('data-idx') === v) return n[k]; }
+                return n[0];   // 换列表后行数变少：回到首行，而不是把焦点丢掉
+            }
+            var idx = parseInt(v, 10) || 0;
+            if(idx >= n.length) idx = n.length - 1;
+            return n[idx];
+        }
+
+        /** 按稳定键恢复焦点；找不到就回到搜索框，保证任何时刻都有一个可见焦点。 */
+        function restoreFocus(key){
+            if(!isTv) return;
+            var el = findByFocusKey(key);
+            if(el && remoteVisible(el)){ remoteFocus(el); return; }
+            var fb = $('playlistId');
+            if(fb && remoteVisible(fb)) remoteFocus(fb);
+        }
+
+        // 仅把歌词滚动显示文本区置为不可聚焦；歌词工具栏按钮（−/＋/换词/下载）保留遥控器可达
+        function disableLyricFocus(){
+            var nodes = document.querySelectorAll('.p-lrc, .p-lrc *');
+            for(var i=0;i<nodes.length;i++){
+                nodes[i].setAttribute('tabindex', '-1');
+                try{ nodes[i].style.outline = 'none'; }catch(e){}
+            }
+        }
+
+        function remoteCollect(){
+            if($('pickerMask').classList.contains('show')){
+                var p = [];
+                // "输入歌曲ID"模式：输入框也要进焦点组，否则遥控器根本选不到它
+                if($('pickerBody') && $('pickerBody').style.display !== 'none'){
+                    var ib = $('lrcIdInput');
+                    if(ib && remoteVisible(ib)) p.push({el: ib, group:'picker'});
+                }
+                var pl = $('pickerList').querySelectorAll('.picker-item');
+                for(var i=0;i<pl.length;i++){ if(remoteVisible(pl[i])) p.push({el:pl[i], group:'picker'}); }
+                var pb = document.querySelectorAll('.picker-foot button');
+                for(var j=0;j<pb.length;j++){ if(remoteVisible(pb[j])) p.push({el:pb[j], group:'picker'}); }
+                return p;
+            }
+            // 按屏幕物理顺序纵向分组：搜索行 → 歌词工具栏 → 进度条 → 播放控制行 → 歌曲列表；歌词文本区不进入焦点
+            var groups = [
+                { group:'search',    sels:['#playlistId', '.change-btn', '#boardSel'] },
+                { group:'lyricbar',  sels:['.lrc-btn'] },
+                { group:'bar',       sels:['#bar'] },
+                { group:'transport', sels:['.p-btn'] },
+                { group:'list',      sels:['.p-list .li'] }
+            ];
+            var list = [];
+            for(var a=0;a<groups.length;a++){
+                for(var b=0;b<groups[a].sels.length;b++){
+                    var n = document.querySelectorAll(groups[a].sels[b]);
+                    for(var m=0;m<n.length;m++){ if(remoteVisible(n[m])) list.push({el:n[m], group:groups[a].group}); }
+                }
+            }
+            return list;
+        }
+
+        function remoteEntryIndex(list, el){
+            for(var i=0;i<list.length;i++){ if(list[i].el === el) return i; }
+            return -1;
+        }
+
+        function remoteGroupIndices(list, group){
+            var idx = [];
+            for(var i=0;i<list.length;i++){ if(list[i].group === group) idx.push(i); }
+            return idx;
+        }
+
+        function remoteEnterGroup(list, groupName, dir){
+            var idxs = remoteGroupIndices(list, groupName);
+            if(!idxs.length) return false;
+            remoteFocus(list[dir > 0 ? idxs[0] : idxs[idxs.length-1]].el);
+            return true;
+        }
+
+        function remoteClear(){
+            // 清全部：只清第一个会在异步恢复（setTimeout / layoutTvList 回调）竞争时
+            // 留下第二个框，真机上表现为"两个控件同时被框住"
+            var olds = document.querySelectorAll('.tv-focus');
+            for(var i=0;i<olds.length;i++){ olds[i].classList.remove('tv-focus'); }
+            // 同时移除真实 DOM 焦点：旧控件若被真实 focus 过（remoteFocus 对按钮/列表行会做
+            // el.focus()），只摘类不足以清掉它持有的焦点，WebView 会在旧控件上继续画焦点环
+            var ae = document.activeElement;
+            if(ae && ae !== document.body && ae.blur){
+                /* 键盘会话中（焦点在输入框）绝不摘掉输入框的真实焦点：
+                   列表重建 / 焦点环移动时若 blur 输入框，InputConnection 会一起被掐断、
+                   IME 随即被系统收起。输入中方向键不会走到 remoteFocus（原生层已放行给
+                   系统输入法），保留此焦点不影响遥控器移动焦点环。 */
+                var isInput = ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA';
+                if(!isInput){ try{ ae.blur(); }catch(e){} }
+            }
+        }
+
+        function remoteReset(){
+            remoteClear();
+            focusEl = null;
+            var ae = document.activeElement;
+            if(ae && ae !== document.body && ae.blur){ try{ ae.blur(); }catch(e){} }
+        }
+
+        // 只查找歌单列表或选项弹窗自身的滚动容器；进度条、播放按钮、歌词工具栏等不触发任何页面滚动
+        function nearestScrollBox(el){
+            var selectors = ['.p-list', '.picker-list'];
+            for(var c=0; c<selectors.length; c++){
+                var box = null;
+                if(el.closest){ box = el.closest(selectors[c]); }
+                if(!box){
+                    var parent = el.parentElement;
+                    while(parent){
+                        var cls = parent.classList ? parent.classList : [];
+                        if(cls.contains(selectors[c].slice(1))){ box = parent; break; }
+                        parent = parent.parentElement;
+                    }
+                }
+                if(box) return box;
+            }
+            return null;
+        }
+
+        function focusScroll(el){
+            var box = nearestScrollBox(el);
+            if(!box) return;
+            var er = el.getBoundingClientRect();
+            var br = box.getBoundingClientRect();
+            if(er.height <= 0 || br.height <= 0) return;
+            var margin = 16;
+            if(er.top < br.top){
+                box.scrollTop = Math.max(0, box.scrollTop - (br.top - er.top + margin));
+            } else if(er.bottom > br.bottom){
+                box.scrollTop = box.scrollTop + (er.bottom - br.bottom + margin);
+            }
+        }
+
+        function remoteFocus(el){
+            remoteClear();
+            if(!el) return;
+            focusEl = el;
+            focusKey = focusKeyOf(el);   // 记住稳定键：DOM 重建后仍能找回同一控件
+            el.classList.add('tv-focus');
+            // 输入框 / 下拉框只给视觉焦点环，不做真实 DOM focus：
+            // 一旦真实聚焦，focus 事件与 WebView 的 InputConnection 会各自唤起一次输入法，
+            // 电视上"遥控器只是移动焦点经过搜索框"就会莫名弹出键盘。
+            var tag = el.tagName;
+            if(tag !== 'INPUT' && tag !== 'SELECT' && tag !== 'TEXTAREA'){
+                try{ el.focus({preventScroll:true}); }catch(e){ try{ el.focus(); }catch(e2){} }
+            }
+            // 输入框只给视觉焦点环、不做真实 DOM focus（见上注释）。输入中列表重建时
+            // 焦点由 remoteClear 的"不摘输入框焦点"保护；万一仍丢失，原生层 isActive
+            // 轮询会发现连接断开并回调 __kbClosed 自愈，页面无需在此补救。
+            // 电视上遥控器移动到播放列表行时，该焦点行始终置顶
+            try{
+                if(el.classList.contains('li') && $('listBox') && $('listBox').contains(el)){
+                    scrollListRowToTop(el);
+                } else {
+                    focusScroll(el);
+                }
+            }catch(e){}
+        }
+
+        /** 当前焦点在列表里的下标。DOM 引用失效（列表重建过）时按稳定键重新定位。 */
+        function currentEntry(list){
+            var cur = remoteEntryIndex(list, focusEl);
+            if(cur < 0 && focusKey){
+                var el = findByFocusKey(focusKey);
+                if(el){
+                    cur = remoteEntryIndex(list, el);
+                    if(cur >= 0) focusEl = el;
+                }
+            }
+            return cur;
+        }
+
+        function remoteMoveVertical(dir){
+            if(!isTv) return;
+            var list = remoteCollect();
+            if(!list.length) return;
+            var cur = currentEntry(list);
+            if(cur < 0){
+                remoteFocus(dir > 0 ? list[0].el : list[list.length-1].el);
+                return;
+            }
+            var group = list[cur].group;
+            // 选项弹窗：上下键在选项之间循环移动，首末项不跳过中间项
+            if(group === 'picker'){
+                var opts = remoteGroupIndices(list, 'picker');
+                if(opts.length){
+                    var pPos = opts.indexOf(cur);
+                    if(pPos < 0) pPos = 0;
+                    pPos += dir;
+                    if(pPos < 0) pPos = opts.length - 1;
+                    if(pPos >= opts.length) pPos = 0;
+                    remoteFocus(list[opts[pPos]].el);
+                }
+                return;
+            }
+            // 歌单组：上下键逐行移动；首行继续向上则返回上方播放控制行，末行向下停在末行
+            if(group === 'list'){
+                var rows = remoteGroupIndices(list, 'list');
+                if(rows.length){
+                    var pos = rows.indexOf(cur);
+                    if(pos < 0) pos = 0;
+                    var nextPos = pos + dir;
+                    if(nextPos < 0){
+                        if(!remoteEnterGroup(list, 'transport', -1)){
+                            remoteFocus(list[rows[0]].el);
+                        }
+                        return;
+                    }
+                    if(nextPos >= rows.length){
+                        remoteFocus(list[rows[rows.length-1]].el);
+                        return;
+                    }
+                    remoteFocus(list[rows[nextPos]].el);
+                }
+                return;
+            }
+            // 其余单行组：按屏幕顺序跨组移动
+            var order = ['search','lyricbar','bar','transport','list','picker'];
+            var gi = order.indexOf(group);
+            var nextGi = gi + dir;
+            while(nextGi >= 0 && nextGi < order.length){
+                var idxs = remoteGroupIndices(list, order[nextGi]);
+                if(idxs.length){
+                    remoteFocus(list[dir > 0 ? idxs[0] : idxs[idxs.length-1]].el);
+                    return;
+                }
+                nextGi += dir;
+            }
+            var same = remoteGroupIndices(list, group);
+            if(same.length) remoteFocus(list[dir > 0 ? same[same.length-1] : same[0]].el);
+        }
+
+        function remoteMoveHorizontal(dir){
+            if(!isTv) return;
+            var list = remoteCollect();
+            if(!list.length) return;
+            var cur = currentEntry(list);
+            if(cur < 0){ remoteFocus(list[dir > 0 ? 0 : list.length-1].el); return; }
+            var group = list[cur].group;
+            if(group === 'bar'){
+                remoteSeek(dir > 0 ? audio.duration * 0.05 : -audio.duration * 0.05);
+                return;
+            }
+            if(group === 'list'){ return; }
+            var idxs = remoteGroupIndices(list, group);
+            var pos = idxs.indexOf(cur);
+            if(pos < 0) pos = 0;
+            pos += dir;
+            if(pos < 0) pos = idxs.length - 1;
+            if(pos >= idxs.length) pos = 0;
+            remoteFocus(list[idxs[pos]].el);
+        }
+
+        function remoteActivate(){
+            if(!isTv) return;
+            var list = remoteCollect();
+            // 优先以当前可见的焦点环元素为准（DOM 引用可能已因列表重建失效，再按稳定键兜底一次），
+            // 避免列表重建后按 OK 被误判成"当前什么都没有"，从而错触发第一个元素（搜索框弹键盘）
+            var el = document.querySelector('.tv-focus');
+            if(!el && focusEl && document.body.contains(focusEl)) el = focusEl;
+            if(!el && focusKey) el = findByFocusKey(focusKey);
+            var matched = false;
+            for(var i=0;i<list.length;i++){ if(list[i].el === el){ matched = true; break; } }
+            if(!matched && list.length) el = list[0].el;
+            if(!el) return;
+            focusEl = el;
+            // 输入框：确认键 = 聚焦并唤起输入法（电视上唯一主动弹键盘的入口）。
+            // 「输入完成」不走确认键：键盘弹出期间原生层会把确认键/方向键放行给系统输入法，
+            // 用户用输入法的回车/搜索键提交（onSearchKey），不存在"再按一次确认"的第二态，
+            // 也就不会有"弹键盘 / 提交搜索"判断错位的问题。
+            if(el.tagName === 'INPUT'){
+                try{
+                    el.focus({preventScroll:true});   // 不触发 scrollIntoView，避免整页位移
+                    showKb();
+                }catch(err){ showStatus('输入法唤起失败：' + err.message, true); }
+                return;
+            }
+            if(el.classList.contains('change-btn')){
+                try{
+                    var kw = $('playlistId').value.trim();
+                    showStatus(kw ? '正在检索：' + kw : '正在按当前内容检索...', true);
+                    loadOrSearch();
+                }catch(err){ showStatus('搜索失败：' + err.message, true); }
+                return;
+            }
+            // 排行榜：确认键弹出榜单选项列表，遥控器上下选择后直接加载
+            if(el.tagName === 'SELECT'){
+                showBoardPicker();
+                return;
+            }
+            if(el.id === 'bar'){ return; }
+            // 列表行直接按 data-idx 调 pick，避免不同 WebView 对 div 合成 click 支持不一致
+            if(el.classList && el.classList.contains('li')){
+                var di = parseInt(el.getAttribute('data-idx'), 10);
+                if(!isNaN(di) && typeof pick === 'function'){ pick(di); return; }
+            }
+            var anchor = el;
+            try{ el.click(); }catch(e){
+                try{ el.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true})); }catch(e2){}
+            }
+            // 播放/切歌/列表开关等动作会重建列表，结束后焦点仍停留在原控件，不跳到列表首行
+            setTimeout(function(){
+                if(document.body.contains(anchor) && remoteVisible(anchor)){
+                    remoteFocus(anchor);
+                }
+            }, 120);
+        }
+
+        function remoteSeek(step){
+            if(!isTv) return;
+            if(!audio.duration) return;
+            audio.currentTime = Math.max(0, Math.min(audio.duration, audio.currentTime + step));
+        }
+
+        // 电视模式按真实视口分配卡片和歌单高度，避免旧 WebView 弹性布局不生效导致列表被压扁。
+        // cb：布局真正生效后回调（焦点恢复必须在高度改完之后，否则滚动位置算错）
+        function layoutTvList(cb){
+            if(!isTv){ if(cb) cb(); return; }
+            // adjustNothing 下键盘弹出不再压缩视口，无需任何键盘相关的布局保护
+            var card = $('playerCard');
+            var fixed = card ? card.querySelector('.p-fixed') : null;
+            var list = $('listBox');
+            if(!card || !fixed || !list){ if(cb) cb(); return; }
+            // 列表折叠时不要按整屏分配固定高度：卡片应收缩到内容高度，
+            // 否则电视上仍留一大块白底，展开时高度也会错位。
+            if(listHidden){
+                card.style.height = '';
+                list.style.height = '';
+                list.style.maxHeight = '';
+                if(cb) cb();
+                return;
+            }
+            function apply(){
+                card.style.height = '';
+                list.style.height = '';
+                list.style.maxHeight = '';
+                var cardTop = card.offsetTop || 0;
+                // v1.15：底部提示已改为 fixed 浮层，不再占布局高度；body.tv 底部 padding 也归零。
+                // 卡片高度直接铺到视口底边（只保留 1px 防滚动条舍入误差）。
+                var cardH = window.innerHeight - cardTop - 1;
+                var fixedH = fixed.offsetHeight || 0;
+                if(cardH < fixedH + 120) cardH = fixedH + 120;
+                var listH = cardH - fixedH;
+                if(listH < 120) listH = 120;
+                card.style.height = cardH + 'px';
+                list.style.height = listH + 'px';
+                list.style.maxHeight = listH + 'px';
+                if(cb) cb();
+            }
+            // rAF 在页面不可见 / 盒子 WebView 渲染被暂停时不会触发，回调（含焦点恢复）就会
+            // 永远不执行；这里用 setTimeout 兜底，保证布局与回调一定会跑到一次。
+            var done = false;
+            function run(){ if(done) return; done = true; apply(); }
+            if(window.requestAnimationFrame){
+                requestAnimationFrame(function(){ requestAnimationFrame(run); });
+                setTimeout(run, 150);
+            } else { run(); }
+        }
+
+        /* 原生层可能在 DOMContentLoaded 之前就下发模式/按键（冷启动抢跑），
+           此时 document.body 还不存在，旧实现会直接在原生侧抛一次 TypeError 并丢掉这次调用。
+           这里把模式先记下来，等 DOM 就绪后再补做。 */
+        var pendingTv = null;
+        window.__setTv = function(flag){
+            isTv = !!flag;
+            if(!document.body){ pendingTv = isTv; return; }
+            document.body.classList.toggle('tv', isTv);
+            if(isTv){
+                // 电视模式下禁止整页纵向滚动；只允许歌单容器自身滚动
+                document.documentElement.style.overflow = 'hidden';
+                document.body.style.overflow = 'hidden';
+                // 已有有效焦点就原样保留（重复下发 __setTv 时不能把用户焦点重置掉）；
+                // 冷启动必须主动建立焦点：框线只由 .tv-focus 类绘制、没有 :focus 兜底，
+                // 不主动设焦点的话启动时页面上一条框都没有。
+                if(focusEl && document.body.contains(focusEl) && remoteVisible(focusEl)){
+                    remoteFocus(focusEl);
+                } else {
+                    restoreFocus(focusKey || '#playlistId');
+                }
+                layoutTvList(function(){
+                    if(isTv && focusEl && document.body.contains(focusEl)) focusScroll(focusEl);
+                });
+            } else {
+                document.documentElement.style.overflow = '';
+                document.body.style.overflow = '';
+                var card = $('playerCard'), list = $('listBox');
+                if(card) card.style.height = '';
+                if(list){ list.style.height = ''; list.style.maxHeight = ''; }
+                remoteReset();
+            }
+        };
+
+        /* 冷启动抢跑：原生层可能在 DOM 就绪前就转发遥控器按键（dispatchKeyEvent 不等人）。
+           旧实现直接丢弃，用户开机后第一次按键无任何反馈。这里记下最后一条命令，
+           DOMContentLoaded 后补放一次（连续按键只保留最后一条足够，方向键幂等）。 */
+        var pendingRemote = null;
+        window.__remote = function(cmd){
+            // DOM 未就绪时不要进来：remoteCollect() 里 $('pickerMask').classList 会直接抛异常
+            if(!isTv || !document.body || !$('pickerMask')){ pendingRemote = cmd; return; }
+            // 无需判断键盘状态：键盘会话期间原生层已把方向键/确认键放行给系统输入法，
+            // 根本不会产生 __remote 调用。
+            if(cmd === 'up'){ remoteMoveVertical(-1); }
+            else if(cmd === 'down'){ remoteMoveVertical(1); }
+            else if(cmd === 'left'){ remoteMoveHorizontal(-1); }
+            else if(cmd === 'right'){ remoteMoveHorizontal(1); }
+            else if(cmd === 'ok'){ remoteActivate(); }
+        };
+
+        function initTvRemote(){
+            var ua = navigator.userAgent || '';
+            // 只在明确的电视/盒子特征下自动进入电视模式。
+            // 注意：不能用裸 "Xiaomi" / "AOSP" 匹配 —— 小米手机和部分原生 ROM 手机的 UA 同样命中，
+            // 会把手机误判成电视并锁进单屏布局（v1.6 的线上问题）。
+            // 也不要再用"无触摸 + 宽视口"这条启发式：桌面 Chrome / 无触摸笔记本的
+            // 'ontouchstart' 本来就是 false，1280 宽的窗口必然命中，于是普通电脑打开本页
+            // 会被锁成 single-screen（documentElement.overflow=hidden，整页不能滚）。
+            // 盒子若 UA 不带电视特征，由原生层主动调 __setTv(true)；调试时用 ?tv=1 / ?tv=0 强制开关。
+            var tvUa = /Android TV|Smart-?TV|Google ?TV|Mi ?Box|MiTV|Fire TV|Web0S|Tizen|BRAVIA|Hisense|Skyworth|Set-top|\bSTB\b/i;
+            var q = location.search || '';
+            var tvOff = /[?&]tv=0\b/.test(q);
+            var tvForce = /[?&]tv=1\b/.test(q);
+            if(!tvOff && (tvForce || tvUa.test(ua))){
+                window.__setTv(true);
+            }
+            disableLyricFocus();
+            // resize 没有节流：拖窗口时每帧都会重排一次卡片/列表高度，加上里面的双 rAF + 150ms 兜底，
+            // 一次拖动会堆出上百个回调。这里做 120ms 合并。
+            var resizeTimer = null;
+            window.addEventListener('resize', function(){
+                if(!isTv) return;
+                // adjustNothing 下键盘弹出不再触发视口变化，这里只需处理真实窗口变化
+                if(resizeTimer) clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(function(){
+                    resizeTimer = null;
+                    if(!isTv) return;
+                    layoutTvList();
+                }, 120);
+            });
+            document.addEventListener('keydown', function(ev){
+                if(!isTv) return;
+                // 输入中（焦点在输入框）：方向键和回车一律交给系统输入法选词/上字，
+                // 页面不抢焦点、不抢确认键。
+                var ae = document.activeElement;
+                if(ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) return;
+                var k = ev.key;
+                if(k === 'ArrowDown'){ ev.preventDefault(); window.__remote('down'); }
+                else if(k === 'ArrowUp'){ ev.preventDefault(); window.__remote('up'); }
+                else if(k === 'ArrowRight'){ ev.preventDefault(); window.__remote('right'); }
+                else if(k === 'ArrowLeft'){ ev.preventDefault(); window.__remote('left'); }
+                else if(k === 'Enter' || k === ' '){
+                    // 焦点在输入框、或事件本身就来自输入框（此时可能已 blur）时都不抢：
+                    // 输入框里的回车属于"提交搜索"，由 onSearchKey 处理
+                    var tg = ev.target;
+                    if(tg && (tg.tagName === 'INPUT' || tg.tagName === 'TEXTAREA' || tg.tagName === 'SELECT')) return;
+                    if(document.activeElement && document.activeElement.tagName === 'INPUT') return;
+                    ev.preventDefault(); window.__remote('ok');
+                }
+                else if(k === 'Escape'){
+                    // 统一走"连按两次退出"状态机（内部含关弹窗 / 收键盘 / 双击确认）
+                    if(handleBack() && ev.preventDefault) ev.preventDefault();
+                }
+            }, false);
+        }
+
+        /* ===== 事件绑定（替代内联 onclick / onkeydown） =====
+           内联事件处理器无法被 CSP 有效防护（必须放开 script-src 'unsafe-inline'），
+           而且"页面到底有哪些动作"只能翻 HTML 才知道。统一收到这里：
+           新增按钮只要写 data-action，一处就能看到全部动作。
+           注意：列表行、候选行的 onclick 是按索引闭包绑定的，仍然就近写在渲染函数里。 */
+        function bindUi(){
+            var ACTIONS = {
+                'prev':        function(){ playPrev(); },
+                'toggle':      function(){ togglePlay(); },
+                'next':        function(){ playNext(); },
+                'mute':        function(){ toggleVol(); },
+                'mode':        function(){ toggleMode(); },
+                'list':        function(){ listToggle(); },
+                'offset-back': function(){ adjustOffset(-0.1); },   // "−" 按钮 = 歌词延后
+                'offset-fwd':  function(){ adjustOffset(0.1); },    // "+" 按钮 = 歌词提前
+                'change-lrc':  function(){ changeLyric(); },
+                'download':    function(){ downloadCurrent(); },
+                'close-picker': function(){ closePicker(); },
+                'manual-lrc':  function(){ manualLyricById(); },
+                'submit-lrc':  function(){ submitLyricId(); }
+            };
+            function actionOf(el){
+                while(el && el !== document.body){
+                    if(el.getAttribute && el.getAttribute('data-action')) return el;
+                    el = el.parentElement;
+                }
+                return null;
+            }
+            document.addEventListener('click', function(e){
+                var el = actionOf(e.target);
+                if(!el) return;
+                var fn = ACTIONS[el.getAttribute('data-action')];
+                if(fn) fn();
+            }, false);
+
+            // 搜索框：回车/输入法搜索键 → 检索（原来写在内联属性里）
+            var kwBox = $('playlistId');
+            if(kwBox){
+                kwBox.addEventListener('keydown', function(ev){ onSearchKey(ev); }, false);
+                kwBox.addEventListener('search', function(){ doSearchFromIme(); }, false);
+            }
+            if($('searchBtn')) $('searchBtn').addEventListener('click', function(){ loadOrSearch(); }, false);
+            if($('boardSel')) $('boardSel').addEventListener('change', function(){ loadBoard(); }, false);
+
+            // 弹层里的歌曲ID输入框：回车直接提交
+            if($('lrcIdInput')){
+                $('lrcIdInput').addEventListener('keydown', function(ev){
+                    var isEnter = ev.key === 'Enter' || ev.keyCode === 13;
+                    if(!isEnter) return;
+                    if(ev.isComposing) return;                 // 组词中的回车交给输入法
+                    if(ev.preventDefault) ev.preventDefault();
+                    if(ev.stopPropagation) ev.stopPropagation();
+                    submitLyricId();
+                }, false);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function(){
+            loadOffsets();
+            loadLyricMemory();
+            loadSrcStat();
+            bindUi();
+            if(pendingTv !== null){ window.__setTv(pendingTv); pendingTv = null; }   // 补做抢跑期间的 __setTv
+            setModeIcon(0);
+            $('modeBtn').title = modeLabels[0];
+            setMuteIcon(false);
+            refreshOffsetDisplay();
+            reportPlaybackState();
+            initTvRemote();
+            armBackGuard();       // 纯网页端的"连按两次返回"；APP 内由原生层调 window.__onBack()
+            /* v1.21 手机输入法唤起：必须在「用户手势的同步调用栈」里显式 input.focus()，
+               否则 WebView 不建立 InputConnection、不向 IME 请求软键盘（旧实现只在 focus
+               事件里被动调原生桥、从不主动 focus，是「点搜索框没反应」的根因）。
+               一次手势（pointerdown → touchend → click → focus 事件）只建立一次焦点、
+               只发一次请求；补发由 showKb 内部唯一的看门狗负责（只补发请求，不重复 focus）。
+               电视模式整条链路不启用：遥控器走 remoteActivate() 的确认键分支。 */
+            var kwBox = $('playlistId');
+            if(kwBox){
+                function wakeInput(){
+                    if(isTv) return;
+                    userActed = true;
+                    var now = Date.now();
+                    if(now - wakeHandled < 300) return;   // 同一手势只建立一次焦点 / 只发一次请求
+                    wakeHandled = now;
+                    try{
+                        // 不要放进 setTimeout：脱离手势栈后 WebView 不会弹键盘。
+                        // 已聚焦就别再 focus：重复 focus 会重建 InputConnection 并触发重排。
+                        if(document.activeElement !== kwBox) kwBox.focus({preventScroll:true});
+                    }catch(e){ try{ kwBox.focus(); }catch(e2){} }
+                    showKb();
+                }
+                kwBox.addEventListener('pointerdown', wakeInput, false);
+                kwBox.addEventListener('touchend', wakeInput, false);    // 只派发 touchend 的 WebView
+                kwBox.addEventListener('click', wakeInput, false);       // 只派发 click 的定制 WebView
+                kwBox.addEventListener('focus', function(){
+                    if(isTv) return;
+                    if(!userActed) return;  // 系统/WebView 自动聚焦：不是用户意图，不弹键盘
+                    if(Date.now() - wakeHandled < 300) return;   // 手势栈已处理，别重复排程
+                    // 只有 focus 事件、没有任何按下事件的定制 WebView：这里兜底一次
+                    wakeHandled = Date.now();
+                    showKb();
+                }, false);
+            }
+            /* v1.17：删除原「600ms 后若 userActed 为 false 就 blur 输入框」的兜底。
+               它在用户启动后 600ms 内首次点输入框时，会把用户刚点出来的焦点清掉并收起键盘
+               （某些 WebView 的 userActed 尚未置位），正是「点了没反应」的元凶之一。
+               防系统自动聚焦弹键盘已由 focus 监听里的 if(!userActed) return 完成，无需 blur。 */
+            loadStartSong();
+            // 补放冷启动抢跑期间被丢弃的遥控器按键（详见 pendingRemote）
+            if(pendingRemote !== null){
+                var pr = pendingRemote;
+                pendingRemote = null;
+                window.__remote(pr);
+            }
+        });
+    </script>
+</body>
+</html>

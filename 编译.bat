@@ -4,7 +4,7 @@ title APK 编译工具
 :: 1. 配置你的核心环境路径
 set "JAVA_HOME=C:\Java\jdk-17.0.2"
 set "ANDROID_HOME=C:\AndroidSDK"
-set "GRADLE_HOME=C:\Gradle\gradle-8.11.1"
+set "GRADLE_HOME=C:\Gradle\gradle-8.7"
 set "PATH=%JAVA_HOME%\bin;%GRADLE_HOME%\bin;%PATH%"
 
 :: 2. 强制指定绝对路径测试 Java

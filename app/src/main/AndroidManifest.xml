@@ -1,125 +1,57 @@
-<?xml version='1.0' encoding='utf-8'?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <!-- 前台播放服务（Android 8+ 必须显式声明，否则 startForegroundService 抛 SecurityException） -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- APP 内更新：下载完成后拉起系统安装器（Android 8+ 需具备该权限，且用户还要在
+         "安装未知应用"里给本应用放行；Updater 会检测并引导） -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
-    <!-- ijkplayer-arm64 的 aar 声明 minSdk 21，强制放行：
-         arm64 设备必然 >=21，低版本走 armeabi-v7a -->
-    <!-- ijkplayer-arm64 的 aar 声明 minSdk 21，强制放行：
-         arm64 设备必然 >=21，低版本走 armeabi-v7a -->
-    <uses-sdk tools:overrideLibrary="tv.danmaku.ijk.media.player_arm64,com.google.android.exoplayer2.ext.okhttp" />
+    <!-- 电视盒子 / Android TV：不强制要求触屏；可在 Leanback 桌面显示 -->
+    <uses-feature
+        android:name="android.software.leanback"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
 
     <application
-        android:name=".App"
-        android:allowBackup="false"
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher_round"
         android:banner="@drawable/tv_banner"
-        android:usesCleartextTraffic="true"
+        android:allowBackup="true"
+        android:supportsRtl="true"
         android:hardwareAccelerated="true"
         android:theme="@style/AppTheme">
 
-        <activity android:name=".MainActivity"
+        <activity
+            android:name=".MainActivity"
             android:exported="true"
-            android:screenOrientation="sensorLandscape"
-            android:configChanges="orientation|screenSize|keyboard|keyboardHidden">
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustNothing|stateAlwaysHidden"
+            android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|uiMode|navigation|keyboard">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <activity android:name=".SettingsActivity"
+        <service
+            android:name=".MusicService"
             android:exported="false"
-            android:screenOrientation="sensorLandscape"
-            android:configChanges="orientation|screenSize|keyboard|keyboardHidden" />
+            android:foregroundServiceType="mediaPlayback"
+            android:stopWithTask="false" />
 
-        <activity android:name=".PlayerActivity"
+        <!-- 更新包授权：只把 cacheDir 下的 .apk 通过 Intent 临时授权给系统安装器 -->
+        <provider
+            android:name=".ApkProvider"
+            android:authorities="com.yanzi.music.updater"
             android:exported="false"
-            android:screenOrientation="sensorLandscape"
-            android:configChanges="orientation|screenSize|keyboard|keyboardHidden" />
-
-        <!-- 搜索页：热搜榜 + 关键词检索（独立页，返回键回主界面） -->
-        <activity android:name=".SearchActivity"
-            android:exported="false"
-            android:screenOrientation="sensorLandscape"
-            android:configChanges="orientation|screenSize|keyboard|keyboardHidden" />
-
-        <activity
-
-            android:name=".HotActivity"
-
-            android:screenOrientation="landscape" />
-
-
-        <activity
-
-
-            android:name=".LoginActivity"
-
-
-            android:screenOrientation="landscape" />
-
-        <activity android:name=".FollowListActivity" android:exported="false" />
-        <activity android:name=".AuthorActivity"
-            android:exported="false"
-            android:screenOrientation="sensorLandscape"
-            android:configChanges="orientation|screenSize|keyboard|keyboardHidden" />
-
-        <!-- 观看历史：纯本地记录，按日期分组（侧边栏「历史」进入） -->
-        <activity android:name=".HistoryActivity"
-            android:exported="false"
-            android:screenOrientation="sensorLandscape"
-            android:configChanges="orientation|screenSize|keyboard|keyboardHidden" />
-
-        <!-- 收藏列表（侧边栏「收藏」进入） -->
-        <activity android:name=".CollectActivity"
-            android:exported="false"
-            android:screenOrientation="sensorLandscape"
-            android:configChanges="orientation|screenSize|keyboard|keyboardHidden" />
-
-        <!-- 评论改为右侧悬浮小窗（CommentDialogFragment），
-             不再需要独立 Activity —— 跳转会暂停视频，体验差。 -->
-
-        <!-- 黑方块来源诊断页：纯白底 + 可选 SurfaceView 合成测试。
-             入口在设置页，不参与正常业务流程。 -->
-        <activity android:name=".WhiteTestActivity"
-            android:exported="false"
-            android:screenOrientation="sensorLandscape"
-            android:configChanges="orientation|screenSize|keyboard|keyboardHidden" />
-
-        <!-- 接口自检页：实测分类/搜索候选接口，结果直接显示在屏幕上。
-             纯诊断用途，入口在设置页。 -->
-        <activity android:name=".ApiProbeActivity"
-            android:exported="false"
-            android:screenOrientation="sensorLandscape"
-            android:configChanges="orientation|screenSize|keyboard|keyboardHidden" />
-
-        <!-- 关于页：作者 / 主页二维码 / 签名校验（设置 -> 关于） -->
-        <activity android:name=".AboutActivity"
-            android:exported="false"
-            android:screenOrientation="sensorLandscape"
-            android:configChanges="orientation|screenSize|keyboard|keyboardHidden" />
-
-            <service android:name=".PlayService" android:exported="false" />
-
-            <!-- 手机遥控 APK 升级安装：文件 URI 用 FileProvider（targetSdk 26 禁止裸 file://） -->
-            <provider
-                android:name="androidx.core.content.FileProvider"
-                android:authorities="${applicationId}.fileprovider"
-                android:exported="false"
-                android:grantUriPermissions="true">
-                <meta-data
-                    android:name="android.support.FILE_PROVIDER_PATHS"
-                    android:resource="@xml/file_paths" />
-            </provider>
+            android:grantUriPermissions="true" />
     </application>
-
 </manifest>

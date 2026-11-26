@@ -1,0 +1,11 @@
+pluginManagement {
+    repositories {
+        maven { url 'https://maven.aliyun.com/repository/google' }
+        maven { url 'https://maven.aliyun.com/repository/public' }
+        maven { url 'https://mirrors.tencent.com/nexus/repository/maven-public/' }
+        google()
+        mavenCentral()
+    }
+}
+rootProject.name = 'yanzi-music'
+include ':app'

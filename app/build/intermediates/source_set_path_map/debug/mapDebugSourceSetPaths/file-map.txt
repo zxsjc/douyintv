@@ -1,0 +1,7 @@
+com.yanzi.music.app-pngs-0 D:\YanZiMusic\app\build\generated\res\pngs\debug
+com.yanzi.music.app-resValues-1 D:\YanZiMusic\app\build\generated\res\resValues\debug
+com.yanzi.music.app-packageDebugResources-2 D:\YanZiMusic\app\build\intermediates\incremental\debug\packageDebugResources\merged.dir
+com.yanzi.music.app-packageDebugResources-3 D:\YanZiMusic\app\build\intermediates\incremental\debug\packageDebugResources\stripped.dir
+com.yanzi.music.app-debug-4 D:\YanZiMusic\app\build\intermediates\merged_res\debug\mergeDebugResources
+com.yanzi.music.app-debug-5 D:\YanZiMusic\app\src\debug\res
+com.yanzi.music.app-main-6 D:\YanZiMusic\app\src\main\res
