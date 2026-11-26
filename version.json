@@ -1,9 +1,9 @@
 {
-    "versionCode": 136,
-    "versionName": "2.36",
-    "apkUrl": "https://github.com/zxsjc/douyintv/releases/download/2.36/Dtv-2.36-debug.apk",
-    "sha256": "9001d65c914281c9538ace01163628244c19ec8b58b080f087214ce9e96cb4c7",
-    "size": 7597037,
-    "notes": "1. 弹幕全部等速，右边新出的弹幕不会再追上并盖住前面那句，间距固定不重叠\n2. 图文作品改用原图级加载（不再拿 480px 缩略图放大），满屏清晰；并预热下一张，切图不卡",
+    "versionCode": 137,
+    "versionName": "2.37",
+    "apkUrl": "https://github.com/zxsjc/douyintv/releases/download/2.37/Dtv-2.37-debug.apk",
+    "sha256": "37a48a429442435f413611cbd7f42bc490a1dd030970531f3d41c087ab35f0e6",
+    "size": 7598521,
+    "notes": "1. 更新下载改为后台进行：不再弹模态进度框，下载期间遥控器、播放、各页面全部照常可用\n2. 下载完成不自动拉安装器（不打断播放），回首页才提示「立即安装」，也可稍后再装\n3. 已下好的包在下次点「检查更新」时直接给「立即安装」，不必重新联网/重下",
     "force": false
 }
