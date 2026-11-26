@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.yanzi.music"
+    android:versionCode="49"
+    android:versionName="2.0" >
+
+    <uses-sdk
+        android:minSdkVersion="23"
+        android:targetSdkVersion="34" />
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!--
+         APP 内更新：下载完成后拉起系统安装器（Android 8+ 需具备该权限，且用户还要在
+         "安装未知应用"里给本应用放行；Updater 会检测并引导）
+    -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <!-- 电视盒子 / Android TV：不强制要求触屏；可在 Leanback 桌面显示 -->
+    <uses-feature
+        android:name="android.software.leanback"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
+
+    <application
+        android:allowBackup="true"
+        android:banner="@drawable/tv_banner"
+        android:debuggable="true"
+        android:extractNativeLibs="false"
+        android:hardwareAccelerated="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme" >
+        <activity
+            android:name="com.yanzi.music.MainActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|uiMode|navigation|keyboard"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustNothing|stateAlwaysHidden" >
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name="com.yanzi.music.MusicService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback"
+            android:stopWithTask="false" />
+
+        <!-- 更新包授权：只把 cacheDir 下的 .apk 通过 Intent 临时授权给系统安装器 -->
+        <provider
+            android:name="com.yanzi.music.ApkProvider"
+            android:authorities="com.yanzi.music.updater"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+    </application>
+
+</manifest>

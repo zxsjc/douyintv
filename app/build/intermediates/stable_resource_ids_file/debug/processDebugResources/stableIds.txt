@@ -1,0 +1,5 @@
+com.yanzi.music:style/AppTheme = 0x7f040000
+com.yanzi.music:string/app_name = 0x7f030000
+com.yanzi.music:mipmap/ic_launcher = 0x7f020000
+com.yanzi.music:drawable/tv_banner = 0x7f010001
+com.yanzi.music:drawable/ic_stat_music = 0x7f010000

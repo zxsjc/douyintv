@@ -1,0 +1,36 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.example.douyintv.app-mergeDebugResources-9:/values-ro/values-ro.xml",
+            "map": [
+                {
+                    "source": "E:\\.gradle\\caches\\8.11.1\\transforms\\b9a98ec3d9cb0a24fa1581266e2fbd06\\transformed\\core-1.7.0\\res\\values-ro\\values-ro.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "100",
+                        "endOffsets": "151"
+                    },
+                    "to": {
+                        "startLines": "11",
+                        "startColumns": "4",
+                        "startOffsets": "752",
+                        "endColumns": "100",
+                        "endOffsets": "848"
+                    }
+                },
+                {
+                    "source": "E:\\.gradle\\caches\\8.11.1\\transforms\\e1a23f3fbe1005213d7de38bc35eae72\\transformed\\exoplayer-core-2.18.1\\res\\values-ro\\values-ro.xml",
+                    "from": {
+                        "startLines": "2,3,4,5,6,7,8,9,10",
+                        "startColumns": "4,4,4,4,4,4,4,4,4",
+                        "startOffsets": "55,136,200,265,337,415,495,585,678",
+                        "endColumns": "80,63,64,71,77,79,89,92,73",
+                        "endOffsets": "131,195,260,332,410,490,580,673,747"
+                    }
+                }
+            ]
+        }
+    ]
+}

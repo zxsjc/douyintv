@@ -1,0 +1,32 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace 'com.yanzi.music'
+    compileSdk 34
+    buildToolsVersion '34.0.0'
+
+    defaultConfig {
+        applicationId "com.yanzi.music"
+        minSdkVersion 23
+        targetSdkVersion 34
+        versionCode 41
+        versionName "1.7.34"
+    }
+
+    buildTypes {
+        debug {
+            minifyEnabled false
+        }
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+}

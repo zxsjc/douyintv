@@ -1,0 +1,18 @@
+<lint-module
+    format="1"
+    dir="D:\DTV-2.31\app"
+    name=":app"
+    type="APP"
+    maven="TVDouyinNative:app:unspecified"
+    agpVersion="8.9.0"
+    buildFolder="build"
+    bootClassPath="C:\AndroidSDK\platforms\android-34\android.jar;C:\AndroidSDK\build-tools\35.0.0\core-lambda-stubs.jar"
+    javaSourceLevel="1.8"
+    compileTarget="android-34"
+    neverShrinking="true">
+  <lintOptions
+      absolutePaths="true"
+      checkReleaseBuilds="true"
+      explainIssues="true"/>
+  <variant name="debug"/>
+</lint-module>

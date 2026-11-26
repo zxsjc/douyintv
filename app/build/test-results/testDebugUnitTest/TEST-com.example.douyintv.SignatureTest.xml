@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.example.douyintv.SignatureTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-11-25T07:23:48" hostname="DESKTOP-B09PSEU" time="0.033">
+  <properties/>
+  <testcase name="aBogus_nonEmpty_andReasonableLength" classname="com.example.douyintv.SignatureTest" time="0.009"/>
+  <testcase name="sm3_longInput_crossesBlockBoundary" classname="com.example.douyintv.SignatureTest" time="0.002"/>
+  <testcase name="aBogus_differsPerCall" classname="com.example.douyintv.SignatureTest" time="0.008"/>
+  <testcase name="aBogus_charsetIsBase64Like" classname="com.example.douyintv.SignatureTest" time="0.002"/>
+  <testcase name="aBogus_dependsOnParams" classname="com.example.douyintv.SignatureTest" time="0.002"/>
+  <testcase name="sm3_abc_matchesStandardVector" classname="com.example.douyintv.SignatureTest" time="0.0"/>
+  <testcase name="sm3_selfTest_passes" classname="com.example.douyintv.SignatureTest" time="0.001"/>
+  <testcase name="sm3_empty_matchesStandardVector" classname="com.example.douyintv.SignatureTest" time="0.001"/>
+  <testcase name="sm3_objectNotBrokenByConcurrency" classname="com.example.douyintv.SignatureTest" time="0.003"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

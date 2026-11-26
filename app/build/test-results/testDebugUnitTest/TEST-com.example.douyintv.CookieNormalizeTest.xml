@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.example.douyintv.CookieNormalizeTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-11-25T07:23:48" hostname="DESKTOP-B09PSEU" time="0.116">
+  <properties/>
+  <testcase name="JSON 里缺字段的条目被跳过" classname="com.example.douyintv.CookieNormalizeTest" time="0.111"/>
+  <testcase name="普通分号串原样通过并去空白" classname="com.example.douyintv.CookieNormalizeTest" time="0.0"/>
+  <testcase name="值里的分号与等号不被破坏" classname="com.example.douyintv.CookieNormalizeTest" time="0.0"/>
+  <testcase name="破损 JSON 回退为原文" classname="com.example.douyintv.CookieNormalizeTest" time="0.0"/>
+  <testcase name="空数组得到空串" classname="com.example.douyintv.CookieNormalizeTest" time="0.0"/>
+  <testcase name="JSON 数组转成分号串" classname="com.example.douyintv.CookieNormalizeTest" time="0.0"/>
+  <testcase name="签名算法对固定输入稳定（回归基线）" classname="com.example.douyintv.CookieNormalizeTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

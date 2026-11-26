@@ -1,0 +1,38 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.yanzi.music.app-debug-4:/values_values.arsc.flat",
+            "map": [
+                {
+                    "source": "D:\\YanZiMusic\\app\\src\\main\\res\\values\\styles.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endLines": "4",
+                        "endColumns": "12",
+                        "endOffsets": "200"
+                    },
+                    "to": {
+                        "startLines": "3",
+                        "startColumns": "4",
+                        "startOffsets": "97",
+                        "endLines": "5",
+                        "endColumns": "12",
+                        "endOffsets": "242"
+                    }
+                },
+                {
+                    "source": "D:\\YanZiMusic\\app\\src\\main\\res\\values\\strings.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "41",
+                        "endOffsets": "92"
+                    }
+                }
+            ]
+        }
+    ]
+}
