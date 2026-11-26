@@ -1,0 +1,170 @@
+package com.example.douyintv
+
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.util.Log
+import org.json.JSONObject
+import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
+
+/**
+ * 在线更新（GitHub Releases 渠道）
+ * ==============================
+ * 渠道设计：
+ *   · 版本清单：仓库根目录 version.json（raw.githubusercontent.com 直读，无鉴权、无频率限制困扰）
+ *   · APK 本体：GitHub Releases 的 assets（打 tag 发布时上传）
+ *   · 客户端流程：拉清单 → 比对 versionCode → 有新版则弹窗（更新说明）→ 下载到
+ *     filesDir/update.apk → 复用 FileProvider 唤起系统安装器（4.2 需手动确认，已知约束）
+ *
+ * 清单格式（version.json）：
+ * {
+ *   "versionCode": 116,
+ *   "versionName": "2.16",
+ *   "apkUrl": "https://github.com/<user>/<repo>/releases/download/v2.16/Dtv-2.16-release.apk",
+ *   "notes": "1. xxx\n2. yyy",
+ *   "force": false
+ * }
+ */
+object UpdateChecker {
+
+    private const val TAG = "Update"
+
+    /** 版本清单地址（GitHub 仓库 Alone2235/DTV，raw 直读；国内可用 jsDelivr 镜像） */
+    const val DEFAULT_MANIFEST = "https://raw.githubusercontent.com/Alone2235/DTV/main/version.json"
+    /** jsDelivr 镜像（raw 被墙时备用，Prefs 可切换） */
+    const val CDN_MANIFEST = "https://cdn.jsdelivr.net/gh/Alone2235/DTV@main/version.json"
+
+    data class Info(
+        val versionCode: Int,
+        val versionName: String,
+        val apkUrl: String,
+        val notes: String,
+        val sha256: String,
+        val force: Boolean
+    )
+
+    /** 拉取版本清单；失败返回 null（静默失败，不打扰用户） */
+    fun fetchManifest(ctx: Context): Info? {
+        val url = Prefs.getUpdateUrl().ifBlank { DEFAULT_MANIFEST }
+        if (url.contains("CHANGE_ME")) return null      // 还没配置仓库 → 视为没有更新渠道
+        return try {
+            val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+                connectTimeout = 8000
+                readTimeout = 8000
+                setRequestProperty("User-Agent", "DTV-Updater")
+            }
+            val text = conn.inputStream.bufferedReader().use { it.readText() }
+            conn.disconnect()
+            val o = JSONObject(text)
+            Info(
+                o.optInt("versionCode", 0),
+                o.optString("versionName", ""),
+                o.optString("apkUrl", ""),
+                o.optString("notes", ""),
+                o.optString("sha256", ""),
+                o.optBoolean("force", false)
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "清单获取失败: ${e.message}")
+            null
+        }
+    }
+
+    /** 与当前安装版本比对；有新版返回 Info，否则 null */
+    fun check(ctx: Context): Info? {
+        val info = fetchManifest(ctx) ?: return null
+        val cur = try { BuildConfig.VERSION_CODE } catch (_: Throwable) { 0 }
+        return if (info.versionCode > cur && info.apkUrl.isNotBlank()) info else null
+    }
+
+    /**
+     * 下载 APK 到 filesDir/update.apk（覆盖旧文件）。
+     * onProgress(0..100)；成功返回文件，失败返回 null。
+     */
+    fun download(ctx: Context, apkUrl: String, expectedSha256: String = "", onProgress: (Int) -> Unit = {}): File? {
+        val target = File(ctx.filesDir, "update.apk")
+        return try {
+            val conn = (URL(apkUrl).openConnection() as HttpURLConnection).apply {
+                connectTimeout = 10000
+                readTimeout = 20000
+                instanceFollowRedirects = true
+                setRequestProperty("User-Agent", "DTV-Updater")
+            }
+            // ★ contentLengthLong 是 API 24；目标机 4.2 上没有。
+            //   用 Content-Length 响应头解析（API 1 就有），拿不到再退化成 contentLength。
+            val headerLen = conn.getHeaderField("Content-Length")?.trim()?.toLongOrNull()
+            @Suppress("DEPRECATION")
+            val legacyLen = conn.contentLength.toLong()
+            val total = (headerLen ?: legacyLen).coerceAtLeast(0L)
+            conn.inputStream.use { input ->
+                target.outputStream().use { out ->
+                    val buf = ByteArray(128 * 1024)
+                    var got = 0L
+                    while (true) {
+                        val n = input.read(buf)
+                        if (n < 0) break
+                        out.write(buf, 0, n)
+                        got += n
+                        if (total > 0) onProgress((got * 100 / total).toInt())
+                    }
+                }
+            }
+            conn.disconnect()
+            onProgress(100)
+            // ★ 下载完成 → SHA-256 校验（version.json 提供期望值，防篡改/防坏包）
+            if (expectedSha256.isNotBlank() && !sha256Of(target).equals(expectedSha256.trim().lowercase(), ignoreCase = true)) {
+                Log.e(TAG, "SHA-256 校验失败，拒绝安装（期望 ${expectedSha256.take(12)}… 实际 ${sha256Of(target).take(12)}…）")
+                target.delete()
+                return null
+            }
+            target
+        } catch (e: Exception) {
+            Log.e(TAG, "下载失败: ${e.message}")
+            null
+        }
+    }
+
+    /** 计算文件 SHA-256（小写 hex） */
+    private fun sha256Of(file: File): String {
+        return try {
+            val md = java.security.MessageDigest.getInstance("SHA-256")
+            file.inputStream().use { ins ->
+                val buf = ByteArray(128 * 1024)
+                while (true) {
+                    val n = ins.read(buf)
+                    if (n < 0) break
+                    md.update(buf, 0, n)
+                }
+            }
+            md.digest().joinToString("") { String.format("%02x", it) }
+        } catch (e: Exception) {
+            Log.e(TAG, "SHA-256 计算失败: ${e.message}")
+            ""
+        }
+    }
+
+    /** 唤起系统安装器（走 FileProvider，targetSdk 26 不允许裸 file://） */
+    fun install(ctx: Context, expectedSha256: String = ""): Boolean {
+        return try {
+            val f = File(ctx.filesDir, "update.apk")
+            if (!f.exists()) return false
+            if (expectedSha256.isNotBlank() && !sha256Of(f).equals(expectedSha256.trim().lowercase(), ignoreCase = true)) {
+                Log.e(TAG, "安装前 SHA-256 校验失败，拒绝安装")
+                return false
+            }
+            val uri: Uri = androidx.core.content.FileProvider.getUriForFile(
+                ctx, ctx.packageName + ".fileprovider", f)
+            val i = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            ctx.startActivity(i)
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "唤起安装器失败: ${e.message}")
+            false
+        }
+    }
+}

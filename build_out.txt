@@ -1,0 +1,113 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.11.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:generateDebugBuildConfig UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
+> Task :app:javaPreCompileDebug UP-TO-DATE
+> Task :app:mergeDebugShaders UP-TO-DATE
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets UP-TO-DATE
+> Task :app:compressDebugAssets UP-TO-DATE
+> Task :app:checkDebugDuplicateClasses UP-TO-DATE
+> Task :app:desugarDebugFileDependencies UP-TO-DATE
+> Task :app:mergeDebugJniLibFolders UP-TO-DATE
+> Task :app:mergeDebugNativeLibs UP-TO-DATE
+> Task :app:stripDebugDebugSymbols UP-TO-DATE
+> Task :app:validateSigningDebug UP-TO-DATE
+> Task :app:writeDebugAppMetadata UP-TO-DATE
+> Task :app:writeDebugSigningConfigVersions UP-TO-DATE
+> Task :app:preDebugUnitTestBuild UP-TO-DATE
+> Task :app:javaPreCompileDebugUnitTest UP-TO-DATE
+> Task :app:preDebugAndroidTestBuild SKIPPED
+> Task :app:generateDebugAndroidTestResValues UP-TO-DATE
+> Task :app:extractProguardFiles UP-TO-DATE
+> Task :app:compileDebugKotlin
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/App.kt:104:22 'field signatures: (Array<Signature!>..Array<out Signature!>?)' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/App.kt:104:49 'field signatures: (Array<Signature!>..Array<out Signature!>?)' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/App.kt:107:32 'field signatures: (Array<Signature!>..Array<out Signature!>?)' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/CommentDialogFragment.kt:4:8 'class DialogFragment : Fragment, DialogInterface.OnCancelListener, DialogInterface.OnDismissListener' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/CommentDialogFragment.kt:48:31 'constructor(): DialogFragment' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/CommentDialogFragment.kt:48:31 'class DialogFragment : Fragment, DialogInterface.OnCancelListener, DialogInterface.OnDismissListener' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/CommentDialogFragment.kt:68:15 'var arguments: Bundle!' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/CommentDialogFragment.kt:102:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Please add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/CommentDialogFragment.kt:105:13 'val activity: Activity!' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/CommentDialogFragment.kt:110:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Please add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/CommentDialogFragment.kt:123:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Please add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/CommentDialogFragment.kt:124:15 'fun onViewCreated(p0: View!, p1: Bundle?): Unit' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/CommentDialogFragment.kt:126:23 'var arguments: Bundle!' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/CommentDialogFragment.kt:127:22 'var arguments: Bundle!' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/CommentDialogFragment.kt:128:20 'var arguments: Bundle!' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/CommentDialogFragment.kt:130:13 'var isCancelable: Boolean' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/CommentDialogFragment.kt:141:36 'val activity: Activity!' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/CommentDialogFragment.kt:144:21 'fun startActivity(p0: Intent!): Unit' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/CommentDialogFragment.kt:147:49 'val activity: Activity!' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/CommentDialogFragment.kt:160:42 'fun dismissAllowingStateLoss(): Unit' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/CommentDialogFragment.kt:176:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Please add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/CommentDialogFragment.kt:177:15 'fun onStart(): Unit' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/CommentDialogFragment.kt:181:21 'val dialog: Dialog!' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/CommentDialogFragment.kt:183:22 'val resources: Resources!' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/CommentDialogFragment.kt:229:19 'val activity: Activity!' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/CommentDialogFragment.kt:243:22 'val isAdded: Boolean' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/CommentDialogFragment.kt:243:33 'val view: View?' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/CommentDialogFragment.kt:293:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Please add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/CommentDialogFragment.kt:296:15 'fun onDestroyView(): Unit' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/CustomToast.kt:46:52 'fun getColor(p0: Int): Int' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/CustomToast.kt:53:49 'fun getColor(p0: Int): Int' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/CustomToast.kt:54:79 'fun getColor(p0: Int): Int' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/DanmakuView.kt:43:52 'field scaledDensity: Float' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/Engines.kt:756:16 'fun setAudioStreamType(p0: Int): Unit' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/MainActivity.kt:569:39 'fun getDrawable(p0: Int): Drawable!' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/MainActivity.kt:570:39 'fun getColorStateList(p0: Int): ColorStateList' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/PlayService.kt:43:30 'constructor(p0: Context!): Notification.Builder' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/PlayService.kt:50:78 'val notification: Notification!' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/PlayerActivity.kt:439:55 'static field FLAG_FULLSCREEN: Int' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/PlayerActivity.kt:563:20 'fun requestAudioFocus(p0: AudioManager.OnAudioFocusChangeListener!, p1: Int, p2: Int): Int' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/PlayerActivity.kt:1378:17 'val fragmentManager: FragmentManager!' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/PlayerActivity.kt:1378:33 'fun findFragmentByTag(p0: String!): Fragment!' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/PlayerActivity.kt:1380:18 'fun show(p0: FragmentManager!, p1: String!): Unit' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/PlayerActivity.kt:1380:23 'val fragmentManager: FragmentManager!' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/PlayerActivity.kt:2084:16 'fun abandonAudioFocus(p0: AudioManager.OnAudioFocusChangeListener!): Int' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/SearchActivity.kt:177:35 'fun getDrawable(p0: Int): Drawable!' is deprecated. Deprecated in Java.
+w: file:///D:/DTV-2.31/app/src/main/java/com/example/douyintv/SearchActivity.kt:178:35 'fun getColorStateList(p0: Int): ColorStateList' is deprecated. Deprecated in Java.
+
+> Task :app:compileDebugJavaWithJavac UP-TO-DATE
+> Task :app:processDebugJavaRes UP-TO-DATE
+> Task :app:mergeDebugJavaResource UP-TO-DATE
+> Task :app:dexBuilderDebug
+> Task :app:bundleDebugClassesToRuntimeJar
+> Task :app:mergeDexDebug
+> Task :app:bundleDebugClassesToCompileJar
+> Task :app:packageDebug
+> Task :app:createDebugApkListingFileRedirect UP-TO-DATE
+> Task :app:assembleDebug
+> Task :app:generateDebugAndroidTestLintModel
+> Task :app:generateDebugLintReportModel
+> Task :app:generateDebugUnitTestLintModel
+> Task :app:compileDebugUnitTestKotlin
+> Task :app:compileDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :app:processDebugUnitTestJavaRes UP-TO-DATE
+The Daemon will expire after the build after running out of JVM Metaspace.
+The project memory settings are likely not configured or are configured to an insufficient value.
+The daemon will restart for the next build, which may increase subsequent build times.
+These settings can be adjusted by setting 'org.gradle.jvmargs' in 'gradle.properties'.
+The currently configured max heap space is '896 MiB' and the configured max metaspace is '256 MiB'.
+For more information on how to set these values, please refer to https://docs.gradle.org/8.11.1/userguide/build_environment.html#sec:configuring_jvm_memory in the Gradle documentation.
+To disable this warning, set 'org.gradle.daemon.performance.disable-logging=true'.
+> Task :app:testDebugUnitTest
+> Task :app:lintAnalyzeDebug

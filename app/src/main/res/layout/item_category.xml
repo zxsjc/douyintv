@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  顶部分类标签项（视觉等宽 chips）
+  ================================
+  视觉对齐原则：
+   · 按钮宽度固定（chip_min_width），文字在内部视觉居中 —— 不因文字宽窄导致按钮大小不一
+   · includeFontPadding=false：去掉字体额外内距，文字在胶囊里视觉更居中
+   · 圆角统一 chip_radius(18dp) → 胶囊
+   · 焦点态与选中态靠 tab_bg 的两个背景区分（3 米外也看得清）
+-->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="@dimen/chip_min_width"
+    android:layout_height="@dimen/tab_height"
+    android:layout_marginRight="@dimen/space_s"
+    android:background="@drawable/tab_bg"
+    android:focusable="true"
+    android:focusableInTouchMode="true"
+    android:gravity="center"
+    android:includeFontPadding="false"
+    android:singleLine="true"
+    android:textColor="@color/tab_text"
+    android:textSize="@dimen/tv_tab_text_size" />
