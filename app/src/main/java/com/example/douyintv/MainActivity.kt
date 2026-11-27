@@ -1,6 +1,7 @@
 package com.example.douyintv
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
@@ -118,6 +119,9 @@ class MainActivity : Activity() {
     /** 顶部频道名「关注」：直接走关注流接口（我关注的人发的视频） */
     private val FOLLOW_TAB = "关注"
 
+    /** 自动刷新周期（5 分钟） */
+    private val AUTO_REFRESH_MS = 5 * 60 * 1000L
+
     /** Tab 实际顺序：关注 + 推荐 + 各分类 */
     private val TAB_NAMES: List<String> by lazy {
         listOf(FOLLOW_TAB) + CATEGORY_KEYWORDS.keys.toList()
@@ -137,6 +141,33 @@ class MainActivity : Activity() {
     private lateinit var tabContainer: android.widget.LinearLayout
     private var lastCursor = 0L
     private var hasMore = true
+
+    /**
+     * 分类搜索的【批次起点偏移】——「换一批」靠它。
+     * 搜索接口是 offset 分页，同一个 offset 返回同一批内容；
+     * 旧代码 reset 永远从 offset=0 拉，所以「刷新」等于原地踏步。
+     */
+    private var categoryOffset = 0
+
+    /** 本次分类内容是否走了「风控兜底」（推荐流筛关键词），用于如实提示 */
+    private var lastLoadFallback = false
+
+    /** 频道自动刷新：停在顶部时每 5 分钟换一批 */
+    private val autoRefreshTick = object : Runnable {
+        override fun run() {
+            try {
+                if (!isFinishing && uiReady && uiForeground && !loading &&
+                    Prefs.getAutoRefresh(this@MainActivity) &&
+                    gridView.visibility == View.VISIBLE &&
+                    (layoutManager.findFirstVisibleItemPosition() <= 0)
+                ) {
+                    refreshChannel(nextBatch = true, silent = true)
+                }
+            } catch (_: Throwable) {
+            }
+            handler.postDelayed(this, AUTO_REFRESH_MS)
+        }
+    }
 
     /** 首页 UI 是否已建（恢复直通时不建，等真正回到前台再补建） */
     private var uiReady = false
@@ -372,6 +403,7 @@ class MainActivity : Activity() {
 
     override fun onPause() {
         uiForeground = false
+        handler.removeCallbacks(autoRefreshTick)
         super.onPause()
     }
 
@@ -396,6 +428,9 @@ class MainActivity : Activity() {
         }
         // ★ 在播放页里下完的更新，回到首页才提示安装（绝不打断正在看的视频）
         navRecommend.postDelayed({ if (uiForeground) maybeOfferInstall() }, 1200)
+        // ★ 2.38：频道自动刷新（默认 5 分钟；停在列表顶部才刷新，不打扰翻页中的用户）
+        handler.removeCallbacks(autoRefreshTick)
+        handler.postDelayed(autoRefreshTick, AUTO_REFRESH_MS)
     }
 
     // ================================================================
@@ -781,6 +816,7 @@ class MainActivity : Activity() {
     private fun onCategoryClick(name: String) {
         if (activeCategory == name && items.isNotEmpty()) return
         activeCategory = name
+        categoryOffset = 0           // ★ 换频道 = 从第一批看起
         markCategorySelected()
         tvSectionTitle.text = name   // ★ 顶栏标题随分类频道切换
         if (name == FOLLOW_TAB) loadFollowFeed(reset = true)
@@ -811,6 +847,93 @@ class MainActivity : Activity() {
      *
      * 「推荐」档不走搜索，仍是推荐流。
      */
+    /**
+     * 分类兜底：搜索被风控时，用推荐流按分类关键词筛。
+     * 命中不足 12 条就用推荐流补足（提示里已说明数据来源，不谎称是搜索结果）。
+     */
+    private fun categoryFallback(cookie: String, cat: String): DouyinApi.FeedResult? {
+        val keys = CATEGORY_KEYWORDS[cat] ?: return null
+        // ★ 搜索接口在设备端恒被风控 → 用推荐流筛。
+        //   推荐流的 max_cursor 实际不回填（每次都是全新一批），所以不靠游标翻页，
+        //   而是连拉 2 次（每次 count=20），把命中项排前面，不足 12 条再用
+        //   推荐流内容补满格子 —— 宁可频道里有内容看，也不要一整屏空白。
+        val hits = ArrayList<DouyinApi.VideoItem>()
+        val pool = ArrayList<DouyinApi.VideoItem>()
+        for (round in 0 until 2) {
+            val f = DouyinApi.fetchFeed(cookie, maxCursor = 0L, count = 20) ?: break
+            for (v in f.videos) {
+                if (pool.any { it.awemeId == v.awemeId }) continue
+                pool.add(v)
+                val match = keys.any { k ->
+                    v.desc.contains(k, ignoreCase = true) ||
+                        v.topics.any { it.contains(k, ignoreCase = true) } ||
+                        v.author.contains(k, ignoreCase = true)
+                }
+                if (match) hits.add(v)
+            }
+        }
+        Log.d(TAG, "分类「$cat」风控兜底：池 ${pool.size} 条，命中 ${hits.size} 条")
+        if (pool.isEmpty()) return null
+        val out = ArrayList<DouyinApi.VideoItem>()
+        out.addAll(hits)
+        for (v in pool) {
+            if (out.size >= 16) break
+            if (hits.none { it.awemeId == v.awemeId }) out.add(v)
+        }
+        return DouyinApi.FeedResult(out, 0L, true)
+    }
+
+    /**
+     * 换一批 / 刷新当前频道。
+     * · 关注 → 重拉关注流首页
+     * · 推荐 → 重拉推荐流（它本身就「每次请求都是新内容」，等于换一批）
+     * · 分类 → 把批次偏移 +20，再看下一批搜索结果
+     */
+    private fun refreshChannel(nextBatch: Boolean, silent: Boolean = false) {
+        if (!uiReady || loading) return
+        if (nextBatch && activeCategory != FOLLOW_TAB && activeCategory != "推荐") {
+            categoryOffset += 20
+        }
+        when {
+            activeCategory == FOLLOW_TAB -> loadFollowFeed(reset = true)
+            activeCategory == "推荐" -> loadFeed(NAV_RECOMMEND, reset = true)
+            else -> loadCategoryFeed(activeCategory, reset = true)
+        }
+        try { gridView.scrollToPosition(0) } catch (_: Throwable) {}
+        if (!silent) {
+            tvHint.text = "正在换一批…"
+            try { navRecommend.requestFocus() } catch (_: Throwable) {}
+        }
+    }
+
+    /** 菜单键：频道级操作（换一批 / 自动刷新开关 / 设置） */
+    private fun showChannelMenu() {
+        val auto = Prefs.getAutoRefresh(this)
+        val labels = arrayOf(
+            "换一批 · 当前「" + activeCategory + "」",
+            "自动刷新 · " + (if (auto) "开" else "关") + "（每 5 分钟，停在顶部时生效）",
+            "打开设置 / 重新配置 Cookie"
+        )
+        try {
+            AlertDialog.Builder(this)
+                .setTitle("频道菜单")
+                .setItems(labels) { _, which ->
+                    when (which) {
+                        0 -> refreshChannel(nextBatch = true)
+                        1 -> {
+                            val v = !Prefs.getAutoRefresh(this)
+                            Prefs.setAutoRefresh(this, v)
+                            tvHint.text = if (v) "自动刷新已开（每 5 分钟）" else "自动刷新已关"
+                        }
+                        2 -> openSettings()
+                    }
+                }
+                .show()
+        } catch (e: Exception) {
+            Log.e(TAG, "频道菜单失败", e)
+        }
+    }
+
     private fun loadCategoryFeed(cat: String, reset: Boolean) {
         // 「推荐」= 原生推荐流
         if (cat == "推荐") {
@@ -822,7 +945,9 @@ class MainActivity : Activity() {
         //   改为自增代际、旧响应回来时对不上就丢弃。
         val gen = ++loadGen
         loading = true
-        val offset = if (reset) 0 else items.size
+        // ★ 2.38：offset = 批次起点 + 本批内已翻的条数
+        val offset = if (reset) categoryOffset else categoryOffset + items.size
+        lastLoadFallback = false
         if (reset) {
             items.clear()
             adapter.replaceAll(items)
@@ -833,10 +958,21 @@ class MainActivity : Activity() {
 
         Thread {
             val cookie = Prefs.getCookie(this)
-            val r = try {
+            var r: DouyinApi.FeedResult? = try {
                 DouyinApi.searchVideos(cookie, cat, offset)
             } catch (e: Exception) {
                 null
+            }
+            // ★ 2.38 风控兜底 ★
+            //   搜索接口一旦被抖音判成 antispam_check / verify_check，就是整块返回 0 条，
+            //   界面只能干瞪眼。这里退一步：用【推荐流】（带签名的 /tab/feed，实测一直可用）
+            //   按本频道关键词筛一遍，至少让频道有真实内容可看，并在提示里说清楚。
+            if (r == null || r.videos.isEmpty()) {
+                val fb = try { categoryFallback(cookie, cat) } catch (_: Exception) { null }
+                if (fb != null && fb.videos.isNotEmpty()) {
+                    r = fb
+                    lastLoadFallback = true
+                }
             }
             handler.post {
                 if (gen != loadGen) return@post   // ★ 已被更新的加载取代，丢弃这份迟到结果
@@ -859,8 +995,11 @@ class MainActivity : Activity() {
                     hidePlaceholder()
                     gridView.visibility = View.VISIBLE
                     tvCount.text = "共 " + adapter.itemCount + " 条"
-                    tvHint.text = "分类 · 搜索「" + cat + "」"
-                    hasMore = r.hasMore
+                    tvHint.text = if (lastLoadFallback)
+                        "「" + cat + "」搜索被风控 → 已用推荐流筛选　菜单键 换一批"
+                    else "分类 · 搜索「" + cat + "」"
+                    // ★ 风控兜底来的内容不能当搜索分页用（推荐流有自己的游标）
+                    hasMore = if (lastLoadFallback) false else r.hasMore
                     lastCursor = (offset + r.videos.size).toLong()
                 }
             }
@@ -1108,8 +1247,10 @@ class MainActivity : Activity() {
                     finish()
                     return true
                 }
+                // ★ 2.38：菜单键 → 频道菜单（换一批 / 自动刷新）
                 KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_INFO -> {
-                    openSettings()
+                    if (!uiReady) return super.dispatchKeyEvent(event)
+                    showChannelMenu()
                     return true
                 }
             }

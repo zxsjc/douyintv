@@ -211,6 +211,24 @@ object Prefs {
         ctx(context).edit().putBoolean("loop_one", v).apply()
     }
 
+    // ---- 播放倍速（1.0 = 原速；Exo / IJK 生效，系统播放器不支持）----
+    fun getPlaySpeed(context: Context): Float {
+        val v = ctx(context).getFloat("play_speed", 1.0f)
+        return if (v in 0.4f..2.1f) v else 1.0f
+    }
+
+    fun setPlaySpeed(context: Context, v: Float) {
+        ctx(context).edit().putFloat("play_speed", v).apply()
+    }
+
+    // ---- 频道自动刷新（默认开：停在列表顶部时每 5 分钟换一批）----
+    fun getAutoRefresh(context: Context): Boolean =
+        ctx(context).getBoolean("auto_refresh", true)
+
+    fun setAutoRefresh(context: Context, v: Boolean) {
+        ctx(context).edit().putBoolean("auto_refresh", v).apply()
+    }
+
     // ---- 横屏过滤开关 ----
     // 默认 false（不过滤）：竖屏视频在电视上左右有黑边，但内容完整。
     // 打开后只保留「宽 >= 高」的视频，信息流观感更统一。

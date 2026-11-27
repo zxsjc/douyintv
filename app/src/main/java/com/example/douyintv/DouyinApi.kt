@@ -1010,10 +1010,35 @@ object DouyinApi {
         "&browser_name=Chrome&browser_version=122.0.0.0" +
         "&os_name=Windows&os_version=10&cpu_core_num=8&device_memory=8&platform=PC"
 
+    /**
+     * 按实际 UA 生成搜索参数头。
+     * ★ 签名（a_bogus/X-Bogus）盖的是整串 query，query 里自报的 browser_version
+     *   必须和真实 UA 对得上 —— 否则签名合法但内容自相矛盾，抖音直接回 verify_check。
+     *   这正是「设备上加签名反而必挂」的原因：设备存的是 Chrome/132，
+     *   参数里却一直写 122.0.0.0。
+     */
+    private fun searchHeadFor(ua: String): String {
+        val ver = Regex("Chrome/([0-9.]+)").find(ua)?.groupValues?.getOrNull(1)
+        return if (ver.isNullOrBlank()) SEARCH_HEAD
+        else SEARCH_HEAD.replace("browser_version=122.0.0.0", "browser_version=$ver")
+    }
+
     /** 上次搜索是否打到了真实接口（用于界面如实提示数据来源） */
     @Volatile
     var lastSearchReal = false
         private set
+
+    // ★ 2.38 风控回避（一）：节流 + 短缓存 ★
+    //   实测设备侧搜索请求会被抖音判 antispam_check，而同一 Cookie、同一参数的
+    //   PC 请求正常 → 差异在客户端行为特征（TLS/HTTP2 指纹）与请求频率。
+    //   能改的只有频率：① 两次搜索至少间隔 1.6 秒；② 3 分钟内同 keyword+offset 直接复用。
+    //   这两条把「切分类 + 滚动续拉」的突发请求量砍掉一大半。
+    @Volatile
+    private var lastSearchAt = 0L
+    private const val SEARCH_MIN_GAP_MS = 1600L
+    private const val SEARCH_CACHE_MS = 3 * 60 * 1000L
+    private class SearchCacheEntry(val at: Long, val result: FeedResult)
+    private val searchCache = HashMap<String, SearchCacheEntry>()
 
     /**
      * 搜索联想词。实测不需要任何签名、也不需要登录态即可拿到候选。
@@ -1071,69 +1096,126 @@ object DouyinApi {
     fun searchVideos(cookie: String, keyword: String, offset: Int = 0): FeedResult? {
         lastSearchReal = false
         lastError = ""
-        try {
-            val kw = URLEncoder.encode(keyword, "UTF-8")
-            val params = SEARCH_HEAD +
-                "&search_channel=aweme_general&enable_history=1&keyword=" + kw +
-                "&search_source=normal_search&query_correct_type=1&is_filter_search=0" +
-                "&offset=" + offset + "&count=20"
-
-            val req = Request.Builder()
-                .url(SEARCH_URL + "?" + params)
-                .header("User-Agent", UA)
-                .header("Referer", "https://www.douyin.com/")
-                .header("Accept", "application/json, text/plain, */*")
-                .header("Accept-Language", "zh-CN,zh;q=0.9")
-                .apply { if (cookie.isNotEmpty()) header("Cookie", cookie) }
-                .build()
-
-            val resp = exec(req)
-            val body = resp.body()?.string() ?: ""
-            Log.d(TAG, "← 搜索 HTTP ${resp.code()} body=${body.length}B")
-            if (body.isEmpty()) {
-                lastError = "搜索响应为空（Cookie 可能失效）"
-                return null
+        val cacheKey = keyword + "#" + offset
+        // ① 短缓存：同 keyword+offset 3 分钟内直接复用（大幅减少重复请求）
+        synchronized(searchCache) {
+            val c = searchCache[cacheKey]
+            if (c != null && System.currentTimeMillis() - c.at < SEARCH_CACHE_MS) {
+                lastSearchReal = c.result.videos.isNotEmpty()
+                Log.d(TAG, "搜索命中缓存：$cacheKey（${c.result.videos.size} 条）")
+                return c.result
             }
+        }
+        // ② 节流：搜索请求最小间隔
+        val gap = SEARCH_MIN_GAP_MS - (System.currentTimeMillis() - lastSearchAt)
+        if (gap in 1..SEARCH_MIN_GAP_MS) {
+            try { Thread.sleep(gap) } catch (_: Throwable) {}
+        }
+        lastSearchAt = System.currentTimeMillis()
 
-            val root = JSONObject(body)
-            val sc = root.optInt("status_code", -1)
-            if (sc != 0) {
-                lastError = "搜索 status_code=$sc" + (if (sc == 2483) "（需要登录 Cookie）" else "")
-                Log.d(TAG, "搜索被拒: $lastError")
-                return null
-            }
-            val nilInfo = (root.optJSONObject("search_nil_info") ?: JSONObject())
-                .optString("search_nil_type", "")
-            if (nilInfo == "verify_check") {
-                lastError = "触发风控 verify_check（Cookie 需更新）"
-                return null
-            }
-
-            val arr = root.optJSONArray("data") ?: return FeedResult(emptyList(), 0L, false)
-            val wrapped = JSONArray()
-            for (i in 0 until arr.length()) {
-                try {
-                    val aw = arr.optJSONObject(i)?.optJSONObject("aweme_info") ?: continue
-                    wrapped.put(aw)
-                } catch (_: Exception) {
+        var fr = try { searchOnce(cookie, keyword, offset, signed = false) }
+        catch (e: Exception) { Log.e(TAG, "searchVideos 失败", e); null }
+        if (fr == null) {
+            // ③ 风控升级：无签名被打回时，再用「浏览器式带 a_bogus」的请求试一次
+            Log.d(TAG, "无签名搜索被拒（$lastError），改用 a_bogus 再试")
+            val signed = try { searchOnce(cookie, keyword, offset, signed = true) }
+            catch (e: Exception) { Log.e(TAG, "a_bogus 搜索失败", e); null }
+            if (signed != null) fr = signed
+        }
+        if (fr != null && fr.videos.isNotEmpty()) {
+            synchronized(searchCache) {
+                searchCache[cacheKey] = SearchCacheEntry(System.currentTimeMillis(), fr)
+                if (searchCache.size > 40) {
+                    val now = System.currentTimeMillis()
+                    searchCache.entries.removeAll { now - it.value.at > SEARCH_CACHE_MS * 4 }
                 }
             }
-            if (wrapped.length() == 0) {
-                lastError = "搜索无结果"
+            lastSearchReal = true
+            Log.d(TAG, "✓ 搜索「$keyword」${fr.videos.size} 条（signed 请求可用）")
+        }
+        return fr
+    }
+
+    /**
+     * 单次搜索请求。
+     * @param signed true = 带浏览器指纹参数 + a_bogus（模拟网页端），false = 干净的无签名请求
+     */
+    private fun searchOnce(
+        cookie: String, keyword: String, offset: Int, signed: Boolean
+    ): FeedResult? {
+        val kw = URLEncoder.encode(keyword, "UTF-8")
+        val ua = if (signed) interactUA() else UA
+        var params = searchHeadFor(ua) +
+            "&search_channel=aweme_general&enable_history=1&keyword=" + kw +
+            "&search_source=normal_search&query_correct_type=1&is_filter_search=0" +
+            "&offset=" + offset + "&count=20"
+        if (signed) {
+            val webid = Prefs.cookieValue(cookie, "webid").ifBlank { Prefs.getWebid() }
+            val uifid = uifidOf(cookie)
+            val msToken = Prefs.cookieValue(cookie, "msToken").ifBlank { Prefs.getMsToken() }
+            val fp = verifyFp(cookie)
+            params += "&webid=" + webid + "&uifid=" + uifid +
+                (if (msToken.isNotEmpty()) "&msToken=" + msToken else "") +
+                (if (fp.isNotEmpty()) "&verifyFp=" + fp + "&fp=" + fp else "")
+            val ab = ABogus(ua).generate(params)
+            if (ab.isEmpty()) {
+                lastError = "搜索签名失败"
                 return null
             }
-            val fake = JSONObject()
-            fake.put("status_code", 0)
-            fake.put("aweme_list", wrapped)
-            val fr = parseFeed(fake.toString())
-            lastSearchReal = fr != null && fr.videos.isNotEmpty()
-            Log.d(TAG, "✓ 搜索「$keyword」${fr?.videos?.size ?: 0} 条")
-            return fr
-        } catch (e: Exception) {
-            lastError = "搜索失败: ${e.javaClass.simpleName}"
-            Log.e(TAG, "searchVideos 失败", e)
+            params += "&a_bogus=" + URLEncoder.encode(ab, "UTF-8")
+        }
+
+        val req = Request.Builder()
+            .url(SEARCH_URL + "?" + params)
+            .header("User-Agent", ua)
+            .header("Referer", "https://www.douyin.com/")
+            .header("Accept", "application/json, text/plain, */*")
+            .header("Accept-Language", "zh-CN,zh;q=0.9")
+            .apply { if (cookie.isNotEmpty()) header("Cookie", cookie) }
+            .build()
+
+        val resp = exec(req)
+        val body = resp.body()?.string() ?: ""
+        Log.d(TAG, "← 搜索(${if (signed) "signed" else "plain"}) HTTP ${resp.code()} body=${body.length}B")
+        if (body.isEmpty()) {
+            lastError = "搜索响应为空（Cookie 可能失效）"
             return null
         }
+
+        val root = JSONObject(body)
+        val sc = root.optInt("status_code", -1)
+        if (sc != 0) {
+            lastError = "搜索 status_code=$sc" + (if (sc == 2483) "（需要登录 Cookie）" else "")
+            Log.d(TAG, "搜索被拒: $lastError body=${body.take(200)}")
+            return null
+        }
+        val nilInfo = (root.optJSONObject("search_nil_info") ?: JSONObject())
+            .optString("search_nil_type", "")
+        if (nilInfo.isNotEmpty()) {
+            // ★ 把真实原因写进日志（设备上看不到网页，只能靠这行定位）
+            lastError = if (nilInfo == "verify_check") "触发风控 verify_check（Cookie 需更新）"
+            else "搜索被风控拦截（$nilInfo）"
+            Log.d(TAG, "搜索 nil_type=$nilInfo body=${body.take(200)}")
+            return null
+        }
+
+        val arr = root.optJSONArray("data") ?: return FeedResult(emptyList(), 0L, false)
+        val wrapped = JSONArray()
+        for (i in 0 until arr.length()) {
+            try {
+                val aw = arr.optJSONObject(i)?.optJSONObject("aweme_info") ?: continue
+                wrapped.put(aw)
+            } catch (_: Exception) {
+            }
+        }
+        if (wrapped.length() == 0) {
+            lastError = "搜索无结果"
+            return null
+        }
+        val fake = JSONObject()
+        fake.put("status_code", 0)
+        fake.put("aweme_list", wrapped)
+        return parseFeed(fake.toString())
     }
 
     /**

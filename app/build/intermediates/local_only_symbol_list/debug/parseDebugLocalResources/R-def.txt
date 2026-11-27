@@ -109,6 +109,7 @@ dimen tv_tab_text_size
 dimen tv_text_body
 dimen tv_text_small
 dimen tv_text_title
+drawable about_qr
 drawable btn_chip
 drawable btn_tv_primary
 drawable btn_tv_secondary
@@ -121,7 +122,9 @@ drawable focus_card
 drawable focus_chip
 drawable focus_nav_item
 drawable focus_ring_fg
+drawable ic_nav_collect
 drawable ic_nav_follow
+drawable ic_nav_history
 drawable ic_nav_login
 drawable ic_nav_recommend
 drawable ic_nav_search

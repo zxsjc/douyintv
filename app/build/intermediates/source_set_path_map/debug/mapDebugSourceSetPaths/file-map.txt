@@ -5,10 +5,10 @@ com.example.douyintv.app-ijkplayer-java-0.8.8-3 E:\.gradle\caches\8.11.1\transfo
 com.example.douyintv.app-lifecycle-runtime-2.3.1-4 E:\.gradle\caches\8.11.1\transforms\a71b983699915772eb9cdced43f2f061\transformed\lifecycle-runtime-2.3.1\res
 com.example.douyintv.app-core-1.7.0-5 E:\.gradle\caches\8.11.1\transforms\b9a98ec3d9cb0a24fa1581266e2fbd06\transformed\core-1.7.0\res
 com.example.douyintv.app-exoplayer-core-2.18.1-6 E:\.gradle\caches\8.11.1\transforms\e1a23f3fbe1005213d7de38bc35eae72\transformed\exoplayer-core-2.18.1\res
-com.example.douyintv.app-pngs-7 E:\DTV-2.30\app\build\generated\res\pngs\debug
-com.example.douyintv.app-resValues-8 E:\DTV-2.30\app\build\generated\res\resValues\debug
-com.example.douyintv.app-packageDebugResources-9 E:\DTV-2.30\app\build\intermediates\incremental\debug\packageDebugResources\merged.dir
-com.example.douyintv.app-packageDebugResources-10 E:\DTV-2.30\app\build\intermediates\incremental\debug\packageDebugResources\stripped.dir
-com.example.douyintv.app-debug-11 E:\DTV-2.30\app\build\intermediates\merged_res\debug\mergeDebugResources
-com.example.douyintv.app-debug-12 E:\DTV-2.30\app\src\debug\res
-com.example.douyintv.app-main-13 E:\DTV-2.30\app\src\main\res
+com.example.douyintv.app-pngs-7 E:\Documents\GitHub\douyintv\app\build\generated\res\pngs\debug
+com.example.douyintv.app-resValues-8 E:\Documents\GitHub\douyintv\app\build\generated\res\resValues\debug
+com.example.douyintv.app-packageDebugResources-9 E:\Documents\GitHub\douyintv\app\build\intermediates\incremental\debug\packageDebugResources\merged.dir
+com.example.douyintv.app-packageDebugResources-10 E:\Documents\GitHub\douyintv\app\build\intermediates\incremental\debug\packageDebugResources\stripped.dir
+com.example.douyintv.app-debug-11 E:\Documents\GitHub\douyintv\app\build\intermediates\merged_res\debug\mergeDebugResources
+com.example.douyintv.app-debug-12 E:\Documents\GitHub\douyintv\app\src\debug\res
+com.example.douyintv.app-main-13 E:\Documents\GitHub\douyintv\app\src\main\res

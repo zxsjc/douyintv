@@ -277,18 +277,75 @@ class PlayerActivity : Activity(), SurfaceHolder.Callback, VideoEngine.Listener,
     private var imageSlideIndex = 0
     /** 图文轮播是否处于暂停态 */
     private var imageSlidePaused = false
-    /** 图文轮播定时器（每 4 秒切一张） */
+    /**
+     * 图文轮播定时器（每 4 秒切一张）。
+     * ★ 2.38：不再 % size 死循环 ★
+     *   旧实现取模，永远在本条的图片集里转圈 —— 用户看到的就是「图文只单条循环，
+     *   不会自动播下一条」。现在放完最后一张就按播放模式决定：
+     *   自动连播 → 推进下一条作品；单集循环 → 回到第一张。
+     */
     private val imageSlideTick = object : Runnable {
         override fun run() {
-            if (!isFinishing && imageSlides.isNotEmpty() && !imageSlidePaused && !paused) {
-                imageSlideIndex = (imageSlideIndex + 1) % imageSlides.size
+            if (isFinishing || imageSlides.isEmpty()) return
+            if (imageSlidePaused || paused) { handler.postDelayed(this, 1000L); return }
+            if (imageSlideIndex < imageSlides.lastIndex) {
+                imageSlideIndex++
                 showCurrentSlide()
                 updateInfo()
                 tvPos.text = "${imageSlideIndex + 1}/${imageSlides.size}"
                 try { seekBar.progress = (imageSlideIndex + 1) * 1000 / imageSlides.size } catch (_: Throwable) {}
+                handler.postDelayed(this, 4000L)
+            } else {
+                advanceImagePost()
             }
-            if (imageSlides.isNotEmpty()) handler.postDelayed(this, 4000L)
         }
+    }
+
+    /** 本条图文的最后一张放完了：连播下一条 / 单集循环重头再来 */
+    private fun advanceImagePost() {
+        if (imageSlides.isEmpty()) return
+        if (Prefs.isLoopOne(this)) {
+            imageSlideIndex = 0
+            showCurrentSlide()
+            updateInfo()
+            tvPos.text = "1/${imageSlides.size}"
+            try { seekBar.progress = 1000 / maxOf(1, imageSlides.size) } catch (_: Throwable) {}
+            handler.postDelayed(imageSlideTick, 4000L)
+            return
+        }
+        if (currentIndex < items.size - 1) {
+            currentIndex++
+            urlAttempt = 0
+            retrySameEngine = 0
+            playCurrent()
+            return
+        }
+        if (hasMore) {
+            maybeLoadMore()
+            flash("加载更多…")
+            // 这一批回来可能要一两秒：稍后重试一次（仍在末尾就再等）
+            handler.postDelayed({
+                if (imageSlides.isNotEmpty() && imageSlideIndex >= imageSlides.lastIndex) advanceImagePost()
+            }, 1600L)
+            return
+        }
+        flash("已是最后一条")
+    }
+
+    /** 图文作品：←→ 手动翻图（到头则切下一条作品） */
+    private fun stepImageSlide(delta: Int) {
+        if (imageSlides.isEmpty()) return
+        val target = imageSlideIndex + delta
+        if (target > imageSlides.lastIndex) { nextVideo(); return }
+        imageSlideIndex = target.coerceAtLeast(0)
+        showCurrentSlide()
+        updateInfo()
+        tvPos.text = "${imageSlideIndex + 1}/${imageSlides.size}"
+        try { seekBar.progress = (imageSlideIndex + 1) * 1000 / imageSlides.size } catch (_: Throwable) {}
+        handler.removeCallbacks(imageSlideTick)
+        handler.postDelayed(imageSlideTick, 4000L)
+        flash("${imageSlideIndex + 1}/${imageSlides.size}")
+        showControls()
     }
 
     /** 起播卡死看门狗：位置一直为 0 的起始时刻 / 是否已救过当前视频 */
@@ -508,6 +565,7 @@ class PlayerActivity : Activity(), SurfaceHolder.Callback, VideoEngine.Listener,
             tvHint = findViewById(R.id.tvHint) as TextView
             danmaku = try { findViewById(R.id.danmaku) as DanmakuView } catch (_: Throwable) { null }
             if (Prefs.getDanmaku()) applyDanmaku()
+            playSpeed = Prefs.getPlaySpeed(this)      // ★ 2.38 记住上次的倍速
 
             // ★ 功能按钮直接摆在底栏：←→ 就能选中、OK 进入
             //   （不再让用户去猜「菜单键」在哪 —— 电视遥控器还可能压根没有 MENU 键）
@@ -523,6 +581,12 @@ class PlayerActivity : Activity(), SurfaceHolder.Callback, VideoEngine.Listener,
             btnViews.forEachIndexed { i, v ->
                 v.setOnClickListener { FocusAnim.press(v); triggerBtn(i) }
                 v.setOnFocusChangeListener { view, has -> FocusAnim.scale(view, has) }
+                // ★ 2.38：底栏按钮不再接受遥控器焦点 ★
+                //   以前播放页一进来焦点就落在按钮上，←→ 全被它们吃掉，
+                //   进度条永远拖不动。功能入口统一收到「菜单键」里，
+                //   ←→ 就只干一件事：快退 / 快进。触屏点按仍然有效。
+                v.isFocusable = false
+                v.isFocusableInTouchMode = false
             }
             tvHint.text = "←→ 选择　OK 进入"
 
@@ -571,7 +635,7 @@ class PlayerActivity : Activity(), SurfaceHolder.Callback, VideoEngine.Listener,
             // 把可用引擎直接显示在底栏 —— 用户在电视上就能确认「到底有几个能用的」，
             // 不用再靠猜（这一步就是为了排查「只剩系统播放器可用」那类问题）
             tvHint.text = if (engines.isEmpty()) "无可用引擎"
-            else "引擎 ${engines.joinToString("/") { it.name }}　←→ 选择"
+            else "引擎 ${engines.joinToString("/") { it.name }}　←→快进快退 · 菜单键功能"
 
             engineIndex = if (engines.isEmpty()) 0
             else {
@@ -674,6 +738,8 @@ private fun cur(): DouyinApi.VideoItem? {
      *   · 缓冲领先很大却还卡               → 解码或渲染跟不上（换引擎/换渲染路径才有用）
      */
     private fun samplePerf() {
+        // ★ 图文作品没有视频引擎在跑，采样只会显示「ExoPlayer 无实例」
+        if (imageSlides.isNotEmpty()) { perfLine = ""; return }
         val eng = try { currentEngine() } catch (_: Throwable) { return }
         val pos = try { eng.position() } catch (_: Throwable) { 0L }
         val buf = try { eng.bufferedMs() } catch (_: Throwable) { pos }
@@ -847,7 +913,17 @@ private fun cur(): DouyinApi.VideoItem? {
         try { currentEngine().pause() } catch (_: Throwable) {}  // 停掉上一条视频
         try { barMask.visibility = View.GONE } catch (_: Throwable) {}
         try { resetVideoGeometry() } catch (_: Throwable) {}
+        // ★ 2.38：把视频层整层藏起来 ★
+        //   旧实现只 pause() 引擎，Surface 里最后一帧还留在屏幕上；
+        //   图文层又只有图片本身不透明（FIT_CENTER 两侧透明），于是
+        //   「上一段视频的静止画面铺满屏幕、图文叠在上面」。现在：
+        //   ① SurfaceView 设为 INVISIBLE（不销毁 Surface，切回视频不用重建）
+        //   ② 图文层自带 #FF000000 黑底（布局里已加），双保险
+        try { surface.visibility = View.INVISIBLE } catch (_: Throwable) {}
+        try { imagePostView.setBackgroundColor(android.graphics.Color.BLACK) } catch (_: Throwable) {}
+        try { clearBufferNotice() } catch (_: Throwable) {}
         imagePostView.visibility = View.VISIBLE
+        Log.d(TAG, "图文切层完成：surface=${surface.visibility} 图片层=${imagePostView.visibility}")
         imagePostView.scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
         progressBar.visibility = View.GONE
         ivPause.visibility = View.GONE
@@ -872,6 +948,7 @@ private fun cur(): DouyinApi.VideoItem? {
         imageSlidePaused = false
         try { imagePostView.setImageBitmap(null) } catch (_: Throwable) {}
         imagePostView.visibility = View.GONE
+        try { surface.visibility = View.VISIBLE } catch (_: Throwable) {}   // ★ 2.38 恢复视频层
         try { barMask.visibility = View.VISIBLE } catch (_: Throwable) {}
     }
 
@@ -1203,7 +1280,8 @@ private fun cur(): DouyinApi.VideoItem? {
             "弹幕 · ${if (Prefs.getDanmaku()) "开" else "关"}（评论区文案）",
             "最近错误（${errHistory.size} 条）",
             "打开设置 / 重新配置 Cookie",
-            "画质档位 · 当前 " + Prefs.getQualityGear()
+            "画质档位 · 当前 " + Prefs.getQualityGear(),
+            "播放倍速 · 当前 " + fmtSpeed(playSpeed)
         )
         showControls()
         try {
@@ -1246,6 +1324,7 @@ private fun cur(): DouyinApi.VideoItem? {
                             finish()
                         }
                         10 -> showQualityDialog()
+                        11 -> showSpeedDialog()
                     }
                     showControls()
                 }
@@ -1258,6 +1337,34 @@ private fun cur(): DouyinApi.VideoItem? {
                 dlg.setOnDismissListener { menuDialog = null }
         } catch (e: Exception) {
             Log.e(TAG, "菜单失败", e)
+        }
+    }
+
+    private fun fmtSpeed(s: Float): String =
+        if (s == s.toInt().toFloat()) s.toInt().toString() + "×" else s.toString() + "×"
+
+    /** 倍速二级选择：Exo / IJK 即时生效，并记住下次起播沿用 */
+    private fun showSpeedDialog() {
+        val opts = arrayOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
+        val labels = arrayOf("0.5×（慢放）", "0.75×", "1.0×（原速）", "1.25×", "1.5×", "2.0×（快进）")
+        try {
+            AlertDialog.Builder(this)
+                .setTitle("播放倍速 · 当前 " + fmtSpeed(playSpeed))
+                .setItems(labels) { _, which ->
+                    playSpeed = opts[which]
+                    Prefs.setPlaySpeed(this, playSpeed)
+                    val e = currentEngine()
+                    try { e.setSpeed(playSpeed) } catch (_: Throwable) {}
+                    if (e.name != "ExoPlayer" && e.name != "IJKPlayer") {
+                        flash("系统播放器不支持倍速，请按菜单键切到 Exo/IJK 引擎")
+                    } else {
+                        flash("倍速：" + labels[which] + "（已记住）")
+                    }
+                    showControls()
+                }
+                .show()
+        } catch (e: Exception) {
+            Log.e(TAG, "倍速菜单失败", e)
         }
     }
 
@@ -2030,13 +2137,17 @@ private fun cur(): DouyinApi.VideoItem? {
                 if (paused) { showControls(); return true }
                 nextVideo(); return true
             }
-            // 控件可见 → ←→ 在功能按钮间移动；控件隐藏 → ←→ 快退/快进
+            // ★ 2.38：←→ 就是快退/快进，不再被控制栏抢走 ★
+            //   旧实现只要控制栏可见，←→ 全用来在底栏按钮间挪焦点 ——
+            //   按任意键控制栏就出来，所以「永远拖不动进度」。
+            //   现在只有焦点真的落在按钮上（用户自己按 ↑ 进按钮行）才移焦点；
+            //   图文作品则把 ←→ 当成上一张/下一张。
             KeyEvent.KEYCODE_DPAD_LEFT -> {
-                if (controlsVisible) { moveBtnFocus(-1); return true }
+                if (imageSlides.isNotEmpty()) { stepImageSlide(-1); return true }
                 doSeek(-SEEK_STEP); return true
             }
             KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                if (controlsVisible) { moveBtnFocus(1); return true }
+                if (imageSlides.isNotEmpty()) { stepImageSlide(1); return true }
                 doSeek(SEEK_STEP); return true
             }
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER,

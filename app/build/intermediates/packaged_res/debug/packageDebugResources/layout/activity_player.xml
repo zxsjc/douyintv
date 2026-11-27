@@ -29,6 +29,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:scaleType="fitCenter"
+        android:background="#FF000000"
         android:visibility="gone"
         android:contentDescription="图文作品" />
 

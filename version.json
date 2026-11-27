@@ -1,9 +1,9 @@
 {
-    "versionCode": 137,
-    "versionName": "2.37",
-    "apkUrl": "https://github.com/zxsjc/douyintv/releases/download/2.37/Dtv-2.37-debug.apk",
-    "sha256": "37a48a429442435f413611cbd7f42bc490a1dd030970531f3d41c087ab35f0e6",
-    "size": 7598521,
-    "notes": "1. 更新下载改为后台进行：不再弹模态进度框，下载期间遥控器、播放、各页面全部照常可用\n2. 下载完成不自动拉安装器（不打断播放），回首页才提示「立即安装」，也可稍后再装\n3. 已下好的包在下次点「检查更新」时直接给「立即安装」，不必重新联网/重下",
+    "versionCode": 138,
+    "versionName": "2.38",
+    "apkUrl": "https://github.com/zxsjc/douyintv/releases/download/2.38/Dtv-2.38-debug.apk",
+    "sha256": "c0981ba31a343148725bb722b8fd6e04765da8fc1c15bc9aeac8c77353ea9c41",
+    "size": 7907416,
+    "notes": "1. 图文作品自动连播下一条，且不再露出上一段视频的残帧\n2. 左右方向键现在能拖动进度\n3. 新增倍速播放 0.5×～2.0×\n4. 列表作品大量重复：按 awemeId 在适配器层去重\n5. 风控：只有「关注/推荐」能用，其它频道全挂的原因与回避\n6. 各频道自动刷新 / 换一批",
     "force": false
 }

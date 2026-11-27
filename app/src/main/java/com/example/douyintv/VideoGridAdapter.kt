@@ -34,6 +34,29 @@ class VideoGridAdapter(
         val vertical: TextView = v.findViewById(R.id.tvVertical) as TextView
     }
 
+    /**
+     * 已收录的 awemeId 集合 —— 去重靠它。
+     * ★ 背景：关注流 / 推荐流翻页时会重复吐出同一条（抖音自己的 cursor 会回绕），
+     *   旧实现直接 addAll，结果首页出现同一作品四五遍。去重放在适配器里，
+     *   是因为宿主（MainActivity）把同一个 items 实例交给适配器、又交给播放页
+     *   （FeedBus.put），在这里过滤一遍，列表和播放队列同时干净。
+     */
+    private val seen = HashSet<String>()
+
+    private fun accept(list: List<DouyinApi.VideoItem>, out: MutableList<DouyinApi.VideoItem>): Int {
+        var added = 0
+        for (v in list) {
+            val id = v.awemeId
+            // id 为空的历史数据不参与去重（避免把不同的条目全判成同一条）
+            if (id.isNotBlank()) {
+                if (!seen.add(id)) continue
+            }
+            out.add(v)
+            added++
+        }
+        return added
+    }
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val v = LayoutInflater.from(parent.context)
             .inflate(R.layout.item_video_card, parent, false)
@@ -122,15 +145,17 @@ class VideoGridAdapter(
         // RecyclerView 一致性崩溃（点分类闪退的元凶），回滚为全量刷新。
         // 动画以后用 DiffUtil 单独补，不再用这个组合。
         items.clear()
-        items.addAll(newItems)
+        seen.clear()
+        accept(newItems, items)
         notifyDataSetChanged()
     }
 
     /** 分页追加 */
     fun append(newItems: List<DouyinApi.VideoItem>) {
         val from = items.size
-        items.addAll(newItems)
-        notifyItemRangeInserted(from, newItems.size)
+        val added = accept(newItems, items)
+        if (added > 0) notifyItemRangeInserted(from, added)
+        else android.util.Log.d("VideoGridAdapter", "本批全部重复，丢弃 ${newItems.size} 条")
     }
 
     fun size(): Int = items.size
