@@ -11,9 +11,9 @@
       "type": "SINGLE",
       "filters": [],
       "attributes": [],
-      "versionCode": 140,
-      "versionName": "2.40",
-      "outputFile": "Dtv-2.40-debug.apk"
+      "versionCode": 141,
+      "versionName": "2.41",
+      "outputFile": "Dtv-2.41-debug.apk"
     }
   ],
   "elementType": "File",

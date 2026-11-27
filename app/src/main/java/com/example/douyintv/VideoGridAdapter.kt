@@ -122,6 +122,7 @@ class VideoGridAdapter(
 
         holder.itemView.setOnClickListener { FocusAnim.press(holder.itemView); onClick(position) }
 
+
         // ★ 10 英尺焦点：只留描边 ★
         //   ① 去掉 1.04 倍缩放：卡片贴边时会被 RecyclerView 裁掉 → 「框线显示不全/粗细不一」
         //   ② 去掉封面上的标题浮层：浮层会盖住封面下半部分，同一排里有的卡片像被截短了，

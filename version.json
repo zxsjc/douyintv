@@ -1,9 +1,9 @@
 {
-    "versionCode": 140,
-    "versionName": "2.40",
-    "apkUrl": "https://github.com/zxsjc/douyintv/releases/download/2.40/Dtv-2.40-debug.apk",
-    "sha256": "beb0d5582a39a32a1cb4336661ae6870135180adf7965486a55de2a9b3348539",
-    "size": 7906512,
-    "notes": "1. 搜索改成「搜作者」——网页视频搜索在这台设备上确实修不通，改走唯一通的那条道\n2. 搜索结果页按作者重做：头像 + 昵称 + 粉丝数/认证 + 简介",
+    "versionCode": 141,
+    "versionName": "2.41",
+    "apkUrl": "https://github.com/zxsjc/douyintv/releases/download/2.41/Dtv-2.41-debug.apk",
+    "sha256": "0b372d548dff420b5e80f553c8b09a5b72a05fdcac31cea13dba879965792f0a",
+    "size": 7907361,
+    "notes": "1. ↑ 键：网格里逐行上移，第一行再按 ↑ 直接回频道栏（关注 / 推荐）\n2. 返回键不再'一按就退出'：分段退出 + 明确提示",
     "force": false
 }

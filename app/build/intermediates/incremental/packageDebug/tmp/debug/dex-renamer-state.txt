@@ -1,4 +1,4 @@
-#Fri Nov 27 17:20:21 CST 2026
+#Fri Nov 27 20:21:03 CST 2026
 base.1=E\:\\Documents\\GitHub\\douyintv\\app\\build\\intermediates\\dex\\debug\\mergeDexDebug\\classes2.dex
 path.1=classes2.dex
 base.0=E\:\\Documents\\GitHub\\douyintv\\app\\build\\intermediates\\dex\\debug\\mergeDexDebug\\classes.dex

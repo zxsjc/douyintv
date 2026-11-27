@@ -363,6 +363,7 @@ class MainActivity : Activity() {
 
     override fun onPause() {
         uiForeground = false
+        exitArmedAt = 0L          // 离开页面就作废：下次进来必须重新确认
         handler.removeCallbacks(autoRefreshTick)
         super.onPause()
     }
@@ -539,6 +540,56 @@ class MainActivity : Activity() {
 
     private fun openLogin() {
         startActivity(Intent(this, LoginActivity::class.java))
+    }
+
+    /** 退出确认：第一次按返回的时刻，窗口内再按一次才真退 */
+    private var exitArmedAt = 0L
+    private val EXIT_WINDOW_MS = 2200L
+
+    /** 把焦点交回当前频道标签（关注 / 推荐）—— 从列表里"一键回频道栏"靠它 */
+    private fun focusCurrentChannel(): Boolean {
+        val idx = TAB_NAMES.indexOf(activeCategory)
+        val v = tabViews.getOrNull(if (idx >= 0) idx else 0)
+            ?: rowViews.firstOrNull() ?: return false
+        return try { v.requestFocus() } catch (_: Throwable) { false }
+    }
+
+    /**
+     * 网格里按 ↑：先上移一行（同一列），到顶行就回频道栏。
+     *
+     * ★ 这里不用 RecyclerView 的隐式焦点搜索（在这套网格里它是失效的：↑ 没反应、
+     *   事件还会被当成滚动吃掉），而是自己算目标卡、自己给焦点；
+     *   同一次按键里 requestFocus() 有可能被框架的焦点搜索流程挡掉，
+     *   所以失败时 post 到下一帧再给一次，保证按键一定有着落。
+     */
+    private fun handleGridUp(pos: Int) {
+        if (pos >= spanCount) {
+            val target = pos - spanCount
+            val up = layoutManager.findViewByPosition(target)
+            if (up != null && up.isFocusable && up.requestFocus()) return
+            // 上一行已滚出屏幕（或同帧拿不到）：先滚过去，下一帧再给焦点
+            if (up == null) layoutManager.scrollToPositionWithOffset(target, 0)
+            gridView.post { layoutManager.findViewByPosition(target)?.requestFocus() }
+            return
+        }
+        // 已在第一行 → 回频道栏（关注 / 推荐）
+        if (!focusCurrentChannel()) {
+            gridView.post { focusCurrentChannel() }
+        }
+    }
+
+    /**
+     * v 是不是网格里某张卡的子视图？返回那张卡的 itemView（RecyclerView 的直接子项）。
+     * 卡片里有 ImageView / TextView 等子控件，焦点可能落在其中任意一个，
+     * 所以必须往上爬到 RecyclerView 的直接子项才能拿到 position。
+     */
+    private fun gridItemOf(v: View?): View? {
+        var cur = v
+        while (cur != null) {
+            if (cur.parent === gridView) return cur
+            cur = cur.parent as? View
+        }
+        return null
     }
 
     /**
@@ -1012,7 +1063,26 @@ class MainActivity : Activity() {
                         if (focusFirstGridCard()) return true
                     }
                 }
-                // 规则 5①：返回键优先处理弹层/占位，再退回上一级
+                // ★ 2.41：↑ 在网格里逐行上移，到顶行再按 ↑ 直接回频道栏 ★
+                //   原来 RecyclerView 的隐式焦点搜索在这套网格里是失效的：
+                //   ↑ 按了没反应，焦点被锁在列表里，只能靠 BACK 出去 —— 而 BACK
+                //   一按就是 finish()，用户感觉"按返回就退出应用"。
+                KeyEvent.KEYCODE_DPAD_UP -> {
+                    if (!uiReady) return super.dispatchKeyEvent(event)
+                    val f = currentFocus
+                    if (f === gridView) {
+                        handleGridUp(0)
+                        return true
+                    }
+                    val item = gridItemOf(f)
+                    val pos = if (item != null) layoutManager.getPosition(item) else -1
+                    if (pos >= 0) {
+                        handleGridUp(pos)
+                        // 消费掉：否则事件继续下钻，会被 RecyclerView 当成滚动
+                        return true
+                    }
+                }
+                // 规则 5①：返回键分三步 —— 关占位 → 回频道栏 → 再按一次才退出
                 KeyEvent.KEYCODE_BACK -> {
                     if (placeholder.visibility == View.VISIBLE) {
                         hidePlaceholder()
@@ -1024,7 +1094,25 @@ class MainActivity : Activity() {
             }
                         return true
                     }
-                    finish()
+                    // ① 焦点还在列表里：这一下只负责"回频道栏"，不退出
+                    val f = currentFocus
+                    val inGrid = (f === gridView) || (f != null && gridItemOf(f) != null)
+                    if (inGrid) {
+                        // 回频道栏这一下同时"武装"退出：紧接着再按一次返回才退出应用
+                        exitArmedAt = System.currentTimeMillis()
+                        if (focusCurrentChannel()) {
+                            CustomToast.show(this, "已回到频道栏：再按一次「返回」退出")
+                            return true
+                        }
+                    }
+                    // ② 焦点已在频道栏（或无处可退）：两段式退出，先提示
+                    val now = System.currentTimeMillis()
+                    if (now - exitArmedAt in 1 until EXIT_WINDOW_MS) {
+                        finish()
+                        return true
+                    }
+                    exitArmedAt = now
+                    CustomToast.show(this, "再按一次「返回」退出应用")
                     return true
                 }
                 // ★ 2.38：菜单键 → 频道菜单（换一批 / 自动刷新）
