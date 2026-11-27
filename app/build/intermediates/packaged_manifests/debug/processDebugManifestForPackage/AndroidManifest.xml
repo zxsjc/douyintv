@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.douyintv"
-    android:versionCode="138"
-    android:versionName="2.38" >
+    android:versionCode="140"
+    android:versionName="2.40" >
 
     <!--
  ijkplayer-arm64 的 aar 声明 minSdk 21，强制放行：

@@ -1000,6 +1000,106 @@ object DouyinApi {
     //   · 综合搜索 general/search  → status_code=2483（需「有效登录态 + msToken + a_bogus」）
     // 所以搜索走「先真接口、失败自动降级」的渐进增强路线，不做假入口。
     private const val SEARCH_URL = "https://www.douyin.com/aweme/v1/web/general/search/single/"
+    // ★ 2.40：接口自检（ApiProbeActivity）实测唯一通的一条搜索道 ★
+    //   discover/search + 自检页那套参数（version_code=190500）→ HTTP 200 / status_code=0 / 有数据；
+    //   而同参数下的 general/search/single 恒返回 search_nil_type=verify_check（0 条）。
+    private const val DISCOVER_URL = "https://www.douyin.com/aweme/v1/web/discover/search/"
+    private const val DISCOVER_HEAD =
+        "device_platform=webapp&aid=6383&channel=channel_pc_web" +
+        "&pc_client_type=1&version_code=190500&version_name=19.5.0" +
+        "&cookie_enabled=true&screen_width=1920&screen_height=1080" +
+        "&browser_language=zh-CN&browser_platform=Win32" +
+        "&browser_name=Chrome&browser_version=122.0.0.0"
+
+    /**
+     * 搜到的一位作者。
+     * discover/search 只回「用户 / 话题 / 音乐」，**不含作品**；
+     * 想看他/她的视频还得再进 AuthorActivity（aweme/post）。
+     */
+    data class AuthorHit(
+        val secUid: String,
+        val nickname: String,
+        val avatarUrl: String,
+        val followerCount: Long,
+        val verify: String,
+        val signature: String,
+        val uniqueId: String
+    )
+
+    /**
+     * 按关键词搜作者 —— 2.40 的搜索形态。
+     *
+     * 为什么搜索只能做「搜人」：网页版视频搜索三条道
+     * （general/search/single、search/item、challenge/search）在本机/IP 环境下
+     * 恒返回 search_nil_type=verify_check（0 条）；带 a_bogus、换 UA、换 ttwid、
+     * 剥掉过期 __ac_signature、乃至 App 内开 WebView 让网页自己算签名，全部绕不过
+     * （WebView 里拿到的是「验证码中间页」，DOM 里 0 个 /video/ 链接）。
+     * 唯一不拦、且确实有内容的是 discover/search —— 它是搜人接口。
+     *
+     * 实测（真实登录 Cookie、不带任何签名）：
+     *   keyword=篮球 → status_code=0，10 位作者（路人王篮球 / 746 万粉）
+     *   keyword=美食 → status_code=0，9 位作者
+     *   keyword=乱码 → status_code=0，0 位（正常空结果，不报错）
+     *   offset=10    → 0 位（服务端只给第一页，has_more 不可信，所以不分页）
+     *
+     * @return null = 请求失败；空列表 = 这个词没有匹配的作者
+     */
+    fun searchAuthors(cookie: String, keyword: String): List<AuthorHit>? {
+        lastError = ""
+        return try {
+            val kw = URLEncoder.encode(keyword, "UTF-8")
+            val params = DISCOVER_HEAD + "&type=1&keyword=" + kw + "&offset=0&count=10"
+            val req = Request.Builder()
+                .url(DISCOVER_URL + "?" + params)
+                .header("User-Agent", UA)
+                .header("Referer", "https://www.douyin.com/search/" + kw)
+                .header("Accept", "application/json, text/plain, */*")
+                .apply { if (cookie.isNotEmpty()) header("Cookie", cookie) }
+                .build()
+            val resp = exec(req)
+            val body = resp.body()?.string() ?: ""
+            Log.d(TAG, "← 搜作者 HTTP ${resp.code()} body=${body.length}B")
+            if (body.isEmpty()) {
+                lastError = "作者搜索响应为空（Cookie 可能失效）"
+                return null
+            }
+            val root = JSONObject(body)
+            val sc = root.optInt("status_code", -1)
+            if (sc != 0) {
+                lastError = "作者搜索 status_code=" + sc +
+                    (if (sc == 2483) "（需要登录 Cookie）" else "")
+                return null
+            }
+            val arr = root.optJSONArray("user_list") ?: return emptyList()
+            val out = ArrayList<AuthorHit>()
+            for (i in 0 until arr.length()) {
+                val ui = arr.optJSONObject(i)?.optJSONObject("user_info") ?: continue
+                val sec = ui.optString("sec_uid", "")
+                if (sec.isEmpty()) continue
+                var avatar = ""
+                val list = ui.optJSONObject("avatar_thumb")?.optJSONArray("url_list")
+                if (list != null && list.length() > 0) avatar = list.optString(0, "")
+                out.add(
+                    AuthorHit(
+                        secUid = sec,
+                        nickname = ui.optString("nickname", "作者"),
+                        avatarUrl = avatar,
+                        followerCount = ui.optLong("follower_count", 0L),
+                        verify = ui.optString("enterprise_verify_reason", "")
+                            .ifEmpty { ui.optString("custom_verify", "") },
+                        signature = ui.optString("signature", ""),
+                        uniqueId = ui.optString("unique_id", "")
+                    )
+                )
+            }
+            Log.d(TAG, "✓ 搜作者「" + keyword + "」" + out.size + " 位")
+            out
+        } catch (e: Exception) {
+            Log.e(TAG, "searchAuthors 失败", e)
+            lastError = "作者搜索异常：" + e.javaClass.simpleName
+            null
+        }
+    }
     private const val SUG_URL = "https://www.douyin.com/aweme/v1/web/search/sug/"
 
     private const val SEARCH_HEAD =
@@ -1113,14 +1213,17 @@ object DouyinApi {
         }
         lastSearchAt = System.currentTimeMillis()
 
-        var fr = try { searchOnce(cookie, keyword, offset, signed = false) }
+        // ③ 主路：先净化 Cookie（丢掉浏览器过期的 __ac_signature/__ac_nonce，否则必回 verify_check），
+        //    再预热一个新鲜 __ac_nonce，最后带 a_bogus 请求
+        val cleanCookie = cookie
+        var fr = try { searchOnce(cleanCookie, keyword, offset, signed = true) }
         catch (e: Exception) { Log.e(TAG, "searchVideos 失败", e); null }
         if (fr == null) {
-            // ③ 风控升级：无签名被打回时，再用「浏览器式带 a_bogus」的请求试一次
-            Log.d(TAG, "无签名搜索被拒（$lastError），改用 a_bogus 再试")
-            val signed = try { searchOnce(cookie, keyword, offset, signed = true) }
-            catch (e: Exception) { Log.e(TAG, "a_bogus 搜索失败", e); null }
-            if (signed != null) fr = signed
+            // ④ 兜底：同一条净化过的 Cookie 再走一次「不带签名」的老请求
+            Log.d(TAG, "带签名搜索被拒（$lastError），改用无签名请求再试")
+            val plain = try { searchOnce(cleanCookie, keyword, offset, signed = false) }
+            catch (e: Exception) { Log.e(TAG, "无签名搜索失败", e); null }
+            if (plain != null) fr = plain
         }
         if (fr != null && fr.videos.isNotEmpty()) {
             synchronized(searchCache) {

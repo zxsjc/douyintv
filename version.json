@@ -1,9 +1,9 @@
 {
-    "versionCode": 138,
-    "versionName": "2.38",
-    "apkUrl": "https://github.com/zxsjc/douyintv/releases/download/2.38/Dtv-2.38-debug.apk",
-    "sha256": "c0981ba31a343148725bb722b8fd6e04765da8fc1c15bc9aeac8c77353ea9c41",
-    "size": 7907416,
-    "notes": "1. 图文作品自动连播下一条，且不再露出上一段视频的残帧\n2. 左右方向键现在能拖动进度\n3. 新增倍速播放 0.5×～2.0×\n4. 列表作品大量重复：按 awemeId 在适配器层去重\n5. 风控：只有「关注/推荐」能用，其它频道全挂的原因与回避\n6. 各频道自动刷新 / 换一批",
+    "versionCode": 140,
+    "versionName": "2.40",
+    "apkUrl": "https://github.com/zxsjc/douyintv/releases/download/2.40/Dtv-2.40-debug.apk",
+    "sha256": "beb0d5582a39a32a1cb4336661ae6870135180adf7965486a55de2a9b3348539",
+    "size": 7906512,
+    "notes": "1. 搜索改成「搜作者」——网页视频搜索在这台设备上确实修不通，改走唯一通的那条道\n2. 搜索结果页按作者重做：头像 + 昵称 + 粉丝数/认证 + 简介",
     "force": false
 }

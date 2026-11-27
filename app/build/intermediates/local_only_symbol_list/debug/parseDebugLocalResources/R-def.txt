@@ -185,11 +185,6 @@ id ivMediaTag
 id ivPause
 id ivQr
 id keyboardBox
-id navFollow
-id navLogin
-id navRecommend
-id navSearch
-id navSettings
 id pbCover
 id pbLoading
 id placeholder
@@ -198,7 +193,6 @@ id progressBar
 id recyclerView
 id resultRecycler
 id seekBar
-id sidebar
 id sugBox
 id sugRecycler
 id surface
@@ -251,6 +245,7 @@ layout item_comment
 layout item_follow_author
 layout item_hot_word
 layout item_probe_line
+layout item_search_author
 layout item_search_result
 layout item_two_line
 layout item_video

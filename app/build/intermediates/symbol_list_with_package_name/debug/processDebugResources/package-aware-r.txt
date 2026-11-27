@@ -329,11 +329,6 @@ id keyboardBox
 id left
 id line1
 id line3
-id navFollow
-id navLogin
-id navRecommend
-id navSearch
-id navSettings
 id none
 id normal
 id notification_background
@@ -350,7 +345,6 @@ id right
 id right_icon
 id right_side
 id seekBar
-id sidebar
 id start
 id sugBox
 id sugRecycler
@@ -425,6 +419,7 @@ layout item_comment
 layout item_follow_author
 layout item_hot_word
 layout item_probe_line
+layout item_search_author
 layout item_search_result
 layout item_two_line
 layout item_video

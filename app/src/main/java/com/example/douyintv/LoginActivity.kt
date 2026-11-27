@@ -26,7 +26,7 @@ import com.google.zxing.qrcode.QRCodeWriter
  * ==============
  * 从左侧导航「登录」进入。设置页只留诊断，不再混登录。
  *
- * 为什么是「扫码 + Cookie」而不是账号密码：
+ * 为什么是「手机推送 Cookie」而不是账号密码：
  *   抖音的登录接口（login.douyin.com / sso.douyin.com 的 get_qrcode）实测做不了 ——
  *   直接请求返回验证码要求，换 sso 域名路由被封（403），换移动端 UA 直接
  *   4031「存在安全风险，已阻止此次访问」。它要求浏览器 JS 环境 + 强风控，
@@ -76,7 +76,7 @@ class LoginActivity : Activity() {
             btnLogout.setOnClickListener { confirmLogout() }
             btnStart.setOnClickListener { goPlay() }
 
-            btnStart.post { btnStart.requestFocus() }
+            btnManual.post { btnManual.requestFocus() }
         } catch (t: Throwable) {
             Log.e(TAG, "onCreate 失败", t)
         }
@@ -125,10 +125,9 @@ class LoginActivity : Activity() {
             tvStatus.setTextColor(0xFFF06292.toInt())
             btnStart.isEnabled = false
             btnLogout.visibility = View.GONE
-            tvHint.text = "手机扫码登录（电视上不用打字）：\n" +
-                "1. 手机扫左边二维码\n" +
-                "2. 浏览器打开推送页\n" +
-                "3. 粘贴 Cookie → 点保存，本页会自动更新"
+            tvHint.text = "登录方式：\n" +
+                "① 手机扫左边二维码 → 浏览器打开推送页 → 粘贴 Cookie 保存（本页自动更新）\n" +
+                "② 也可以直接点下面「手动输入 Cookie」在这台电视上粘贴"
         }
     }
 
@@ -168,7 +167,7 @@ class LoginActivity : Activity() {
     private fun confirmLogout() {
         AlertDialog.Builder(this)
             .setTitle("退出登录")
-            .setMessage("将清除本机保存的登录态，之后需要重新扫码登录。")
+            .setMessage("将清除本机保存的登录态，之后需要用手机重新推送 Cookie 登录。")
             .setPositiveButton("退出") { _, _ ->
                 Prefs.setCookie(this, "")
                 render()

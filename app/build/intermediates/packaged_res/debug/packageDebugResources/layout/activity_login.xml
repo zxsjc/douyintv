@@ -72,7 +72,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/space_l"
             android:lineSpacingExtra="6dp"
-            android:text="手机扫码登录（电视上不用打字）：\n1. 手机扫左边二维码\n2. 浏览器打开推送页\n3. 粘贴 Cookie → 点保存，本页会自动更新"
+            android:text="登录方式：\n① 手机扫左边二维码 → 浏览器打开推送页 → 粘贴 Cookie 保存（本页自动更新）\n② 也可以点下面「手动输入 Cookie」直接在这台电视上粘贴"
             android:textColor="@color/text_secondary"
             android:textSize="@dimen/text_caption" />
 

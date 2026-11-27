@@ -288,6 +288,10 @@
         "source": "com.example.douyintv.app-main-13:/drawable/btn_tv_primary.xml"
     },
     {
+        "merged": "com.example.douyintv.app-debug-11:/layout_item_search_author.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/layout/item_search_author.xml"
+    },
+    {
         "merged": "com.example.douyintv.app-debug-11:/drawable_tab_item_bg.xml.flat",
         "source": "com.example.douyintv.app-main-13:/drawable/tab_item_bg.xml"
     },

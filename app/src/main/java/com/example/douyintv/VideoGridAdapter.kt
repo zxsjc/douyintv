@@ -116,11 +116,9 @@ class VideoGridAdapter(
         }
 
         // ★ 焦点外逃修正（第一列左键）★
-        //   快速连按方向键时，若第一列卡片没显式 nextFocusLeftId，框架会把焦点
-        //   甩给「视觉上最近」的左侧纵向图标。这里给第一列明确指向侧栏推荐项，
-        //   非第一列交给 GridLayoutManager 正常处理（设为 -1 表示不干预/自动）。
-        holder.itemView.nextFocusLeftId =
-            if (position % spanCount == 0) R.id.navRecommend else View.NO_ID
+        //   2.39 起左侧纵向栏已删除，而 navRecommend 这个 id 也不存在了。
+        //   统一交回框架就近查找：左边没有可聚焦控件时焦点原地不动，不会外逃。
+        holder.itemView.nextFocusLeftId = View.NO_ID
 
         holder.itemView.setOnClickListener { FocusAnim.press(holder.itemView); onClick(position) }
 

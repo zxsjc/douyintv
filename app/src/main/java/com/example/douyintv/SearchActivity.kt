@@ -13,9 +13,11 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
+import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 
@@ -31,17 +33,25 @@ import androidx.recyclerview.widget.RecyclerView
  *   中文候选（meishi → 美食教程 / 美食测评），所以不需要内置拼音词库。
  *   老电视盒子基本没有输入法，键盘是自绘的，遥控器上下左右 + OK 就能打字。
  *
- * ★ 搜索不带签名 ★
- *   带 a_bogus 反而触发 verify_check；干净请求按登录 Cookie 放行（实测见 DouyinApi）。
+ * ★ 2.40：搜索改成「搜作者」★★
+ *   网页版视频搜索接口（general/search/single 等）在这台设备/IP 上恒返回
+ *   verify_check（0 条），带签名/换 UA/换 ttwid/App 内开 WebView 都绕不过去
+ *   （详见 DouyinApi.searchAuthors 的注释）。
+ *   唯一稳定可用且真有内容的是 discover/search —— 它是「搜人」接口。
+ *   所以本页定位改成：输入作者昵称 → 右侧列出作者（头像/昵称/粉丝/认证）→
+ *   OK 进作者页看 TA 的全部作品。
  *
- * 与热搜榜彻底分开：热搜在独立的 HotActivity（左侧导航「热搜」）。
+ *   顺带的好处：这台盒子的键盘只有字母数字，中文作者名只能走联想词 / 历史 /
+ *   热搜里的中文词，或者先打拼音让联想给出中文候选。
+ *
+ * 热搜继续放在中栏（搜索前显示，开始搜索后自动收起）。
  */
 class SearchActivity : Activity() {
 
     private companion object {
         const val TAG = "Search"
         const val SUG_DELAY = 320L          // 联想防抖：老设备别每敲一下就发请求
-        const val SPAN_RESULT = 1           // 结果用竖向列表（横向卡片）
+        const val SPAN_AUTHOR = 1           // 作者结果：一列一张（昵称动辄七八个字，两列会被截断）
 
         /** 6 列键盘：照参考图，字母 5 行 + 数字 1 行 */
         val KEY_ROWS = listOf("ABCDEF", "GHIJKL", "MNOPQR", "STUVWX", "YZ1234", "567890")
@@ -69,17 +79,16 @@ class SearchActivity : Activity() {
 
     private val typed = StringBuilder()
     private val sugWords = ArrayList<String>()
-    private val items = ArrayList<DouyinApi.VideoItem>()
+    private val authors = ArrayList<DouyinApi.AuthorHit>()
 
     private lateinit var sugAdapter: SugAdapter
-    private lateinit var resultAdapter: SearchResultAdapter
+    private lateinit var resultAdapter: AuthorResultAdapter
 
     private val handler = Handler(Looper.getMainLooper())
     private var sugTask: Runnable? = null
 
     private var keyword = ""
     private var loading = false
-    private var hasMore = false
     private var loadGen = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -109,12 +118,11 @@ class SearchActivity : Activity() {
             sugRecycler.isFocusable = true
             sugRecycler.isFocusableInTouchMode = true
 
-            resultAdapter = SearchResultAdapter(items) { pos -> playAt(pos) }
-            resultRecycler.layoutManager = LinearLayoutManager(this)
+            resultAdapter = AuthorResultAdapter(authors) { pos -> openAuthor(pos) }
+            resultRecycler.layoutManager = GridLayoutManager(this, SPAN_AUTHOR)
             resultRecycler.adapter = resultAdapter
             resultRecycler.isFocusable = true
             resultRecycler.isFocusableInTouchMode = true
-            setupLoadMore()
 
             buildKeyboard()
             btnClear.setOnClickListener { clearInput() }
@@ -152,7 +160,11 @@ class SearchActivity : Activity() {
             lp.bottomMargin = gap
             row.layoutParams = lp
             for (ch in r) {
-                row.addView(makeKey(ch.toString(), kh, kw, gap) { typeChar(ch.toString()) })
+                val key = makeKey(ch.toString(), kh, kw, gap) { typeChar(ch.toString()) }
+                // ★ 每行最后一个键：→ 键把焦点送进中栏（热搜 / 历史 / 联想）
+                //   否则中栏那一列焦点永远进不去（FocusFinder 在这套布局下找不到它）
+                if (ch == r.last()) hookRightToSug(key)
+                row.addView(key)
             }
             keyboardBox.addView(row)
         }
@@ -161,8 +173,30 @@ class SearchActivity : Activity() {
         val fn = LinearLayout(this)
         fn.orientation = LinearLayout.HORIZONTAL
         fn.addView(makeKey("空格", kh, (52 * dp).toInt() + 5 + 52 * 2 + 10, gap) { typeChar(" ") })
-        fn.addView(makeKey("搜索", kh, kw, gap) { submitTyped() })
+        val go = makeKey("搜索", kh, kw, gap) { submitTyped() }
+        hookRightToSug(go)
+        fn.addView(go)
         keyboardBox.addView(fn)
+    }
+
+    /** 给键盘上的键挂一个「→ 进中栏」：有热搜/联想时把焦点交给第一条 */
+    private fun hookRightToSug(key: TextView) {
+        key.setOnKeyListener { _, code, ev ->
+            if (ev.action == KeyEvent.ACTION_DOWN && code == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                focusSug(); true
+            } else false
+        }
+    }
+
+    /** 焦点进中栏：热搜/历史/联想的第一条；中栏空则原地不动 */
+    private fun focusSug() {
+        if (::sugBox.isInitialized && sugBox.visibility != View.VISIBLE) return
+        if (sugWords.isEmpty()) return
+        sugRecycler.post {
+            val vh = sugRecycler.findViewHolderForAdapterPosition(0)
+            if (vh != null) vh.itemView.requestFocus()
+            else sugRecycler.requestFocus()
+        }
     }
 
     private fun makeKey(label: String, h: Int, w: Int, gap: Int, onClick: () -> Unit): TextView {
@@ -275,99 +309,93 @@ class SearchActivity : Activity() {
     // ================================================================
     private fun doSearch(kw: String) {
         if (kw.isBlank()) return
-        // 同一关键词正在加载 → 忽略重复调用
         if (keyword == kw && loading) return
         keyword = kw
-        // ★ 搜索历史：每次搜索记录一条（本地）
+        // 搜索历史：每次搜索记录一条（本地）
         try { Prefs.addSearchHistory(this, kw) } catch (_: Throwable) {}
-        // ★ 两段式：开始搜索后收起联想条，结果占满右栏
+        // 开始搜索后收起联想条，结果占满右栏
         if (::sugBox.isInitialized) sugBox.visibility = View.GONE
         val gen = ++loadGen
         loading = true
-        hasMore = false
-        items.clear()
+        authors.clear()
         resultAdapter.notifyDataSetChanged()
-        tvTitle.text = "全部" + kw + "的结果"
+        tvTitle.text = "作者 · " + kw
         tvCount.text = ""
-        showPlaceholder("正在搜索「" + kw + "」…", true, false)
+        showPlaceholder("正在找作者「" + kw + "」…", true, false)
 
+        val cookie = Prefs.getCookie(this)
         Thread {
-            val cookie = Prefs.getCookie(this)
-            val r = try { DouyinApi.searchVideos(cookie, kw, 0) } catch (e: Exception) { null }
+            val r = try { DouyinApi.searchAuthors(cookie, kw) } catch (e: Exception) { null }
             handler.post {
-                if (gen != loadGen) return@post     // ★ 已被新搜索取代
+                if (gen != loadGen) return@post     // 已被新搜索取代
                 if (isFinishing) return@post
                 loading = false
-                if (r == null || r.videos.isEmpty()) {
+                if (r == null) {
                     showPlaceholder(
-                        "「" + kw + "」没搜到内容\n\n" + DouyinApi.lastError +
-                            "\n\n可到「登录」页重新推送 Cookie，或换个词。",
+                        "搜作者失败\n\n" + DouyinApi.lastError +
+                            "\n\n可到「登录」页重新推送 Cookie，或点「重试」。",
                         false, true
                     )
-                } else {
-                    items.clear(); items.addAll(r.videos)
-                    resultAdapter.notifyDataSetChanged()
-                    hasMore = r.hasMore
-                    hidePlaceholder()
-                    tvCount.text = "共 " + items.size + " 条"
-                    resultRecycler.post { resultRecycler.requestFocus() }
+                    return@post
                 }
-            }
-        }.start()
-    }
-
-    private fun setupLoadMore() {
-        resultRecycler.addOnScrollListener(object : RecyclerView.OnScrollListener() {
-            override fun onScrolled(rv: RecyclerView, dx: Int, dy: Int) {
-                if (dy <= 0 || loading || !hasMore || keyword.isEmpty()) return
-                val lm = rv.layoutManager as? LinearLayoutManager ?: return
-                if (lm.findLastVisibleItemPosition() >= resultAdapter.itemCount - 3) loadMore()
-            }
-        })
-    }
-
-    private fun loadMore() {
-        if (loading || !hasMore || keyword.isEmpty()) return
-        val kw = keyword
-        val gen = ++loadGen
-        loading = true
-        tvCount.text = "加载更多…"
-        Thread {
-            val cookie = Prefs.getCookie(this)
-            val r = try { DouyinApi.searchVideos(cookie, kw, items.size) } catch (e: Exception) { null }
-            handler.post {
-                if (gen != loadGen) return@post
-                if (isFinishing) return@post
-                loading = false
-                if (r != null && r.videos.isNotEmpty()) {
-                    items.addAll(r.videos)
-                    resultAdapter.notifyDataSetChanged()
-                    hasMore = r.hasMore
-                    tvCount.text = "共 " + items.size + " 条"
-                } else {
-                    hasMore = false
-                    tvCount.text = "共 " + items.size + " 条 · 已到底"
+                if (r.isEmpty()) {
+                    showPlaceholder(
+                        "「" + kw + "」没找到作者\n\n" +
+                            "本版搜索按「作者」检索：请输入作者昵称（也可以先打拼音，让联想词给出中文名），\n" +
+                            "找到人后点进去看 TA 的全部作品。\n" +
+                            "抖音的网页视频搜索接口在这台设备上被风控拦住，暂时只能搜人。",
+                        false, false
+                    )
+                    // ★ 空结果没有可聚焦控件，焦点必须还给键盘，否则遥控器就"死"在这一屏
+                    keyboardBox.post {
+                        (keyboardBox.getChildAt(0) as? LinearLayout)?.getChildAt(0)?.requestFocus()
+                    }
+                    return@post
                 }
+                authors.clear(); authors.addAll(r)
+                resultAdapter.notifyDataSetChanged()
+                hidePlaceholder()
+                tvCount.text = "共 " + authors.size + " 位作者"
+                resultRecycler.post { resultRecycler.requestFocus() }
             }
         }.start()
     }
 
     // ================================================================
-    // 播放 / 导航
+    // 作者页导航 / 复位
     // ================================================================
-    private fun playAt(pos: Int) {
-        if (pos < 0 || pos >= items.size) return
-        FeedBus.put(items, pos, FeedBus.SOURCE_SEARCH)
-        startActivity(Intent(this, PlayerActivity::class.java))
+    /** OK 键：进作者主页看 TA 的全部作品（和「我的关注」点作者走的是同一套接口） */
+    private fun openAuthor(pos: Int) {
+        if (pos < 0 || pos >= authors.size) return
+        val a = authors[pos]
+        try {
+            val i = Intent(this, AuthorActivity::class.java)
+            i.putExtra("sec_uid", a.secUid)
+            i.putExtra("author", a.nickname)
+            startActivity(i)
+        } catch (e: Exception) {
+            Log.e(TAG, "打开作者页失败", e)
+            tvCount.text = "打开失败：" + e.message
+        }
+    }
+
+    /** v 是否在 parent 的子树里（焦点来源判断用） */
+    private fun isUnder(v: View, parent: View): Boolean {
+        var p = v.parent
+        while (p is View) {
+            if (p === parent) return true
+            p = p.parent
+        }
+        return false
     }
 
     private fun resetAll() {
         keyword = ""
         loadGen++
-        items.clear()
+        authors.clear()
         resultAdapter.notifyDataSetChanged()
         hidePlaceholder()
-        tvTitle.text = "搜索结果"
+        tvTitle.text = "搜索作者"
         tvCount.text = ""
         typed.setLength(0)
         syncInput()
@@ -386,9 +414,17 @@ class SearchActivity : Activity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // ★ 在中栏（热搜/历史/联想）上按 ← 回键盘，否则遥控器一进中栏就出不来
+        if (event.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+            val f = currentFocus
+            if (f != null && isUnder(f, sugRecycler)) {
+                val first = (keyboardBox.getChildAt(0) as? LinearLayout)?.getChildAt(0)
+                if (first != null && first.requestFocus()) return true
+            }
+        }
         if (event.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_BACK) {
             // 有结果 → 先把结果清掉回到输入态；已经是输入态 → 退出
-            if (items.isNotEmpty()) { resetAll(); return true }
+            if (authors.isNotEmpty()) { resetAll(); return true }
             finish(); return true
         }
         return super.dispatchKeyEvent(event)
@@ -411,6 +447,48 @@ class SearchActivity : Activity() {
 
     private fun hidePlaceholder() {
         placeholder.visibility = View.GONE
+    }
+
+    /** 作者结果卡：头像 / 昵称 / 粉丝数·认证 / 简介（OK 进作者作品页） */
+    private class AuthorResultAdapter(
+        private val data: List<DouyinApi.AuthorHit>,
+        private val onClick: (Int) -> Unit
+    ) : RecyclerView.Adapter<AuthorResultAdapter.VH>() {
+
+        class VH(v: View) : RecyclerView.ViewHolder(v) {
+            val avatar: ImageView = v.findViewById(R.id.ivAvatar)
+            val name: TextView = v.findViewById(R.id.tvName)
+            val meta: TextView = v.findViewById(R.id.tvMeta)
+            val sig: TextView = v.findViewById(R.id.tvSig)
+        }
+
+        override fun getItemCount() = data.size
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
+            val v = LayoutInflater.from(parent.context)
+                .inflate(R.layout.item_search_author, parent, false)
+            return VH(v)
+        }
+
+        override fun onBindViewHolder(h: VH, pos: Int) {
+            if (pos < 0 || pos >= data.size) return
+            val a = data[pos]
+            h.name.text = TextCompat.forTv(a.nickname)
+            val fans = when {
+                a.followerCount >= 100000000L -> "%.1f亿".format(a.followerCount / 100000000.0)
+                a.followerCount >= 10000L -> "%.1f万".format(a.followerCount / 10000.0)
+                a.followerCount > 0L -> a.followerCount.toString()
+                else -> ""
+            }
+            val parts = ArrayList<String>()
+            if (fans.isNotEmpty()) parts.add("粉丝 " + fans)
+            if (a.verify.isNotEmpty()) parts.add(a.verify)
+            h.meta.text = parts.joinToString(" · ")
+            h.sig.text = TextCompat.forTv(a.signature)
+            h.sig.visibility = if (a.signature.isBlank()) View.GONE else View.VISIBLE
+            ImageLoader.load(a.avatarUrl, h.avatar, a.secUid)
+            h.itemView.setOnClickListener { onClick(pos) }
+        }
     }
 
     /** 联想词适配器（复用热搜条目布局） */

@@ -56,14 +56,9 @@ class MainActivity : Activity() {
         const val RESUME_WINDOW_MS = 5 * 60_000L
     }
 
-    // ---- 侧边栏（★ 一步直达：内容在上、个人在下、登录沉底）----
-    // 图标居中修正：布局里已改为 FrameLayout + ImageView，这里用 View 承接，
-    // 不能再强转 TextView —— 否则新布局一加载就 ClassCastException。
-    private lateinit var navRecommend: View
-    private lateinit var navFollow: View
-    private lateinit var navSearch: View
-    private lateinit var navSettings: View
-    private lateinit var navLogin: View
+    // ---- 顶部单行导航（频道标签与入口合并：全中文、无图标）----
+    /** 行内全部可聚焦控件（关注 / 推荐 / 我的关注 / 搜索 / 设置 / 登录） */
+    private val rowViews = ArrayList<View>()
 
     // ---- 内容区 ----
     private lateinit var tvSectionTitle: TextView
@@ -86,7 +81,6 @@ class MainActivity : Activity() {
     private val handler = Handler(Looper.getMainLooper())
     private val items = ArrayList<DouyinApi.VideoItem>()
     private var loading = false
-    private var currentNav = NAV_RECOMMEND
 
     /**
      * 加载代际号 —— 防「迟到的响应盖掉新内容」。
@@ -97,35 +91,16 @@ class MainActivity : Activity() {
     private var loadGen = 0
 
     // ================================================================
-    // 分类定义（★ 真实可用：拉推荐流后按关键词/话题筛选）
+    // 频道定义（只保留「关注」「推荐」，分类频道已整体下线）
     // ================================================================
-    // 抖音的分类流接口（tab/feed?tag_id=）与搜索接口都需要额外签名，
-    // 且 tag_id 无法凭猜测得到，所以采用「推荐流 + 内容筛选」的方式：
-    // 拉若干轮推荐流，按关键词匹配标题 / 话题 / 作者名，归入对应分类。
-    // 好处：不依赖任何不可用接口，点进去一定能看到内容。
-    private val CATEGORY_KEYWORDS: LinkedHashMap<String, List<String>> = linkedMapOf(
-        "推荐" to emptyList(),
-        "美食" to listOf("美食", "吃", "料理", "做饭", "探店", "火锅", "小吃", "菜"),
-        "游戏" to listOf("游戏", "王者", "吃鸡", "手游", "电竞", "对决", "通关"),
-        "影视" to listOf("电影", "剧", "影视", "解说", "片段", "演技"),
-        "音乐" to listOf("音乐", "歌", "翻唱", "演唱", "乐器", "弹唱"),
-        "健身" to listOf("健身", "运动", "减肥", "瑜伽", "跑步", "锻炼", "拉伸"),
-        "萌宠" to listOf("猫", "狗", "宠物", "萌宠", "动物", "铲屎"),
-        "搞笑" to listOf("搞笑", "沙雕", "段子", "逗", "笑", "整活"),
-        "旅行" to listOf("旅行", "旅游", "风景", "自驾", "露营", "徒步"),
-        "生活" to listOf("生活", "日常", "记录", "vlog", "分享", "技巧")
-    )
-
     /** 顶部频道名「关注」：直接走关注流接口（我关注的人发的视频） */
     private val FOLLOW_TAB = "关注"
 
     /** 自动刷新周期（5 分钟） */
     private val AUTO_REFRESH_MS = 5 * 60 * 1000L
 
-    /** Tab 实际顺序：关注 + 推荐 + 各分类 */
-    private val TAB_NAMES: List<String> by lazy {
-        listOf(FOLLOW_TAB) + CATEGORY_KEYWORDS.keys.toList()
-    }
+    /** 频道标签：只剩「关注」「推荐」两个 */
+    private val TAB_NAMES: List<String> = listOf(FOLLOW_TAB, "推荐")
 
     /** 关注流分页状态 */
     private var followCursor = 0L
@@ -141,16 +116,6 @@ class MainActivity : Activity() {
     private lateinit var tabContainer: android.widget.LinearLayout
     private var lastCursor = 0L
     private var hasMore = true
-
-    /**
-     * 分类搜索的【批次起点偏移】——「换一批」靠它。
-     * 搜索接口是 offset 分页，同一个 offset 返回同一批内容；
-     * 旧代码 reset 永远从 offset=0 拉，所以「刷新」等于原地踏步。
-     */
-    private var categoryOffset = 0
-
-    /** 本次分类内容是否走了「风控兜底」（推荐流筛关键词），用于如实提示 */
-    private var lastLoadFallback = false
 
     /** 频道自动刷新：停在顶部时每 5 分钟换一批 */
     private val autoRefreshTick = object : Runnable {
@@ -206,12 +171,8 @@ class MainActivity : Activity() {
             tvSectionTitle.text = FOLLOW_TAB
             loadFollowFeed(reset = true)
 
-            // ★ 规则④：显式指定默认焦点 ★
-            //   放在 post 里，等布局完成后再 requestFocus，否则会被系统清掉。
-            navRecommend.post {
-                navRecommend.requestFocus()
-                Log.d(TAG, "默认焦点 → 推荐")
-            }
+            // ★ 显式指定默认焦点 ★ 放在 post 里等布局完成再 requestFocus
+            focusRowFirst()
         } catch (t: Throwable) {
             Log.e(TAG, "onCreate 失败", t)
             try { tvPlaceholder.text = "启动异常: ${t.javaClass.simpleName}: ${t.message}" } catch (_: Throwable) {}
@@ -224,11 +185,10 @@ class MainActivity : Activity() {
         uiReady = true
         setContentView(R.layout.activity_main)
         bindViews()
-        setupNav()
         setupGrid()
-        buildCategoryTabs()   // ★ 分类 Tab 常驻
+        buildCategoryTabs()   // ★ 频道标签 + 入口合成一行
         // ★ 在线更新：启动 3 秒后静默检查（GitHub 渠道），有新版才弹窗
-        navRecommend.postDelayed({ checkUpdate() }, 3000)
+        tabContainer.postDelayed({ checkUpdate() }, 3000)
     }
 
     /**
@@ -409,7 +369,7 @@ class MainActivity : Activity() {
 
     /** 弹窗关闭后把控制栏恢复（各页实现不同，这里尽力而为） */
     private fun showControlsIfAny() {
-        try { navRecommend.requestFocus() } catch (_: Throwable) {}
+        try { focusRowFirst() } catch (_: Throwable) {}
     }
 
     override fun onResume() {
@@ -424,10 +384,10 @@ class MainActivity : Activity() {
             ensureUi()
             tvSectionTitle.text = FOLLOW_TAB
             loadFollowFeed(reset = true)
-            navRecommend.post { navRecommend.requestFocus() }
+            focusRowFirst()
         }
         // ★ 在播放页里下完的更新，回到首页才提示安装（绝不打断正在看的视频）
-        navRecommend.postDelayed({ if (uiForeground) maybeOfferInstall() }, 1200)
+        tabContainer.postDelayed({ if (uiForeground) maybeOfferInstall() }, 1200)
         // ★ 2.38：频道自动刷新（默认 5 分钟；停在列表顶部才刷新，不打扰翻页中的用户）
         handler.removeCallbacks(autoRefreshTick)
         handler.postDelayed(autoRefreshTick, AUTO_REFRESH_MS)
@@ -525,12 +485,6 @@ class MainActivity : Activity() {
     }
 
     private fun bindViews() {
-        navRecommend = findViewById(R.id.navRecommend)
-        navFollow = findViewById(R.id.navFollow)
-        navSearch = findViewById(R.id.navSearch)
-        navSettings = findViewById(R.id.navSettings)
-        navLogin = findViewById(R.id.navLogin)
-
         tvSectionTitle = findViewById(R.id.tvSectionTitle) as TextView
         tvCount = findViewById(R.id.tvCount) as TextView
         tvHint = findViewById(R.id.tvHint) as TextView
@@ -548,68 +502,26 @@ class MainActivity : Activity() {
     }
 
     // ================================================================
-    // 侧边栏
+    // 顶部单行导航
     // ================================================================
-    private fun setupNav() {
-        // 规则①：可操作控件必须显式可聚焦（老 ROM 上布局里的 focusable 有时不生效，
-        //   代码里再兜一次，成本极低但能避免"看得见按不到"）
-        val navs = navArray()
-        for (n in navs) {
-            n.isFocusable = true
-            n.isFocusableInTouchMode = true
-            // ★ 焦点拓扑统一在 wireFocusTopology() 里建立（tab 建好后才有目标 id）。
-            //   右键不再指向 gridView —— 那会让纵向标签右移直接掉进列表。
-            // ★ 统一动效：焦点放大(1.08) + 按下回弹（FocusAnim 全应用同入口）
-            n.setOnFocusChangeListener { v, has -> FocusAnim.scaleTo(v, has, 1.08f) }
-        }
-
-        // ★ 一步直达：点哪进哪，不经过任何中转页
-        navRecommend.setOnClickListener { switchNav(NAV_RECOMMEND) }
-        navFollow.setOnClickListener { openFollowList() }
-        navSearch.setOnClickListener { openSearch() }
-        navSettings.setOnClickListener { openSettings() }
-        navLogin.setOnClickListener { openLogin() }
+    /** 把焦点交到行首（默认落在「关注」） */
+    private fun focusRowFirst() {
+        val v = rowViews.firstOrNull() ?: return
+        v.post { try { v.requestFocus() } catch (_: Throwable) {} }
     }
-
-    private fun navArray(): Array<View> = arrayOf(
-        navRecommend, navFollow, navSearch, navSettings, navLogin
-    )
 
     /**
-     * ★ 三区域焦点拓扑（遥控器上/下/左/右各走各的通道，绝不串区）
-     *
-     *   ① 纵向导航列：上/下只在 7 个图标间循环（首尾相接），不进列表、不进 tab。
-     *   ② 纵向 → 右：进入横向 tab 条的「当前选中项」（不是直接掉进 gridView 列表）。
-     *   ③ 横向 tab 条：左/右只在 tab 间循环（首尾相接），上/下不越界到别区。
-     *      · 上 → 回到纵向导航「推荐」位（首页）
-     *      · 下 → 进列表（由 dispatchKeyEvent 兜底，直接落到第一张可见卡片）
-     *
-     * 动态 tab 默认没有 id，先分配 id 才能作为 nextFocusXxxId 的目标。
+     * ★ 单行焦点拓扑：一行内左右循环，↓ 进列表，↑ 回到行首；网格 ← 回行首。
+     * 动态 View 默认 NO_ID，这里用 generateViewId 分配的 id 才能作为焦点目标。
      */
     private fun wireFocusTopology() {
-        // ① 纵向列：上下循环
-        val navs = navArray()
-        for (i in navs.indices) {
-            navs[i].nextFocusUpId = navs[(i - 1 + navs.size) % navs.size].id
-            navs[i].nextFocusDownId = navs[(i + 1) % navs.size].id
-            // ② 纵向右键 → 当前选中的横向 tab
-            navs[i].nextFocusRightId = selectedTabId()
+        val row = rowViews
+        for (i in row.indices) {
+            row[i].nextFocusLeftId = row[(i - 1 + row.size) % row.size].id
+            row[i].nextFocusRightId = row[(i + 1) % row.size].id
+            row[i].nextFocusDownId = R.id.gridView
         }
-        // ③ 横向 tab：左右循环；上回纵向首页，下进列表
-        for (i in tabViews.indices) {
-            val t = tabViews[i]
-            t.nextFocusLeftId = tabViews[(i - 1 + tabViews.size) % tabViews.size].id
-            t.nextFocusRightId = tabViews[(i + 1) % tabViews.size].id
-            t.nextFocusUpId = R.id.navRecommend
-            t.nextFocusDownId = R.id.gridView
-        }
-    }
-
-    /** 当前选中分类对应的 tab id；找不到就退回第一个 tab */
-    private fun selectedTabId(): Int {
-        val i = TAB_NAMES.indexOf(activeCategory)
-        return if (i in tabViews.indices) tabViews[i].id
-               else tabViews.firstOrNull()?.id ?: R.id.gridView
+        if (row.isNotEmpty()) gridView.nextFocusLeftId = row[0].id
     }
 
     private fun openSearch() {
@@ -627,26 +539,6 @@ class MainActivity : Activity() {
 
     private fun openLogin() {
         startActivity(Intent(this, LoginActivity::class.java))
-    }
-
-    /** 点「推荐」：回首页并切回推荐档（分类 Tab 常驻，点 Tab 即切频道） */
-    private fun switchNav(nav: Int) {
-        if (currentNav == nav) return
-        currentNav = nav
-        markNavSelected()
-        activeCategory = "推荐"
-        markCategorySelected()
-        tvSectionTitle.text = "推荐"
-        loadFeed(NAV_RECOMMEND, reset = true)
-        gridView.post {
-                // 焦点落到第一张卡（否则遥控器按方向键前没有任何焦点高亮）
-                val first = layoutManager?.findViewByPosition(0)
-                if (first != null) first.requestFocus() else gridView.requestFocus()
-            }
-    }
-
-    private fun markNavSelected() {
-        navRecommend.isSelected = currentNav == NAV_RECOMMEND
     }
 
     /**
@@ -719,8 +611,7 @@ class MainActivity : Activity() {
         // 规则③：RecyclerView 自身可聚焦 + 子项优先获得焦点
         gridView.isFocusable = true
         gridView.isFocusableInTouchMode = true
-        // 规则③防飞出：网格在右，左键回侧边栏
-        gridView.nextFocusLeftId = R.id.navRecommend
+        // 规则③防飞出：网格上方是单行导航，左键回行首（在 wireFocusTopology 里接线）
         // ★ 焦点转交改为「同步」★
         //   旧代码用 gridView.post{} 异步转交给第一张卡：标签按 ↓ 后焦点先落在容器上，
         //   post 还没执行时若连按方向键，框架按容器的 nextFocusLeftId 就把焦点甩到左侧图标。
@@ -748,13 +639,9 @@ class MainActivity : Activity() {
                 val total = layoutManager.itemCount
                 val last = layoutManager.findLastVisibleItemPosition()
                 if (hasMore && !loading && total > 0 && last >= total - 3) {
-                    // 关注频道 → 关注流翻页；分类 Tab 选中「推荐」→ 推荐流翻页；
-                    // 其它分类 → 分类搜索翻页
-                    when {
-                        activeCategory == FOLLOW_TAB -> loadFollowFeed(reset = false)
-                        activeCategory != "推荐" -> loadCategoryFeed(activeCategory, false)
-                        else -> loadFeed(NAV_RECOMMEND, reset = false)
-                    }
+                    // 关注频道 → 关注流翻页；推荐频道 → 推荐流翻页
+                    if (activeCategory == FOLLOW_TAB) loadFollowFeed(reset = false)
+                    else loadFeed(NAV_RECOMMEND, reset = false)
                 }
             }
         })
@@ -775,13 +662,18 @@ class MainActivity : Activity() {
     // ================================================================
     // 分类：Tab 条（★ 常驻主界面顶部，点 Tab 即切频道）
     // ================================================================
-    /** 构建分类 Tab（只构建一次；主界面常驻显示） */
+    /**
+     * 构建顶部单行导航：频道标签（关注 / 推荐）+ 入口（我的关注 / 搜索 / 设置 / 登录）。
+     * 统一中文文字、无图标、同一套 chip 视觉与焦点动效。
+     */
     private fun buildCategoryTabs() {
-        if (tabViews.isNotEmpty()) return      // 已构建过
+        if (rowViews.isNotEmpty()) return      // 已构建过
 
-        val dp = resources.displayMetrics.density
-        val padH = (18 * dp).toInt()
-        for (name in TAB_NAMES) {
+        val chipW = resources.getDimensionPixelSize(R.dimen.chip_min_width)
+        val chipH = resources.getDimensionPixelSize(R.dimen.tab_height)
+        val gap = resources.getDimensionPixelSize(R.dimen.space_s)
+
+        fun addChip(name: String, onClick: () -> Unit): TextView {
             val tv = TextView(this)
             // ★ 动态 View 默认 NO_ID，必须显式分配才能当 nextFocusXxxId 的目标
             tv.id = View.generateViewId()
@@ -790,37 +682,40 @@ class MainActivity : Activity() {
             tv.gravity = android.view.Gravity.CENTER
             tv.isFocusable = true
             tv.isFocusableInTouchMode = true
-            // 视觉对齐：分类标签统一固定宽度（视觉等宽），文字内部居中
-            val chipW = resources.getDimensionPixelSize(R.dimen.chip_min_width)
-            val chipH = resources.getDimensionPixelSize(R.dimen.tab_height)
-            tv.gravity = android.view.Gravity.CENTER
             tv.includeFontPadding = false
-            tv.setPadding(0, 0, 0, 0)
             tv.height = chipH
             tv.background = resources.getDrawable(R.drawable.tab_item_bg)
             tv.setTextColor(resources.getColorStateList(R.color.tab_text))
             val lp = android.widget.LinearLayout.LayoutParams(chipW, chipH)
-            lp.rightMargin = resources.getDimensionPixelSize(R.dimen.space_s)
+            lp.rightMargin = gap
             tv.layoutParams = lp
-            tv.setOnClickListener { FocusAnim.press(tv); onCategoryClick(name) }
+            tv.setOnClickListener { FocusAnim.press(tv); onClick() }
             tv.setOnFocusChangeListener { v, has -> FocusAnim.scaleTo(v, has, 1.08f) }
-            // ↓ 进列表：显式指定，避免快速连按时焦点被框架甩到左侧图标
-            tv.nextFocusDownId = R.id.gridView
             tabContainer.addView(tv)
+            rowViews.add(tv)
+            return tv
+        }
+
+        for (name in TAB_NAMES) {
+            val tv = addChip(name) { onCategoryClick(name) }
             tabViews.add(tv)
         }
-        // markCategorySelected() 内部会在 tab 就绪后统一接线（见 wireFocusTopology）
+        // 原左侧纵向图标（全中文文字，不再需要图标）
+        addChip("我的关注") { openFollowList() }
+        addChip("搜索") { openSearch() }
+        addChip("设置") { openSettings() }
+        addChip("登录") { openLogin() }
+
         markCategorySelected()
     }
 
     private fun onCategoryClick(name: String) {
         if (activeCategory == name && items.isNotEmpty()) return
         activeCategory = name
-        categoryOffset = 0           // ★ 换频道 = 从第一批看起
         markCategorySelected()
-        tvSectionTitle.text = name   // ★ 顶栏标题随分类频道切换
+        tvSectionTitle.text = name   // ★ 顶栏标题随频道切换
         if (name == FOLLOW_TAB) loadFollowFeed(reset = true)
-        else loadCategoryFeed(name, reset = true)
+        else loadFeed(NAV_RECOMMEND, reset = true)
         // ★ 点完标签不要抢焦点 ★
         //   以前这里会把焦点直接塞给第一张卡片：用户按一下 OK 选频道的瞬间焦点就跳走，
         //   紧接着快速按方向键时焦点已在网格里乱跑，甚至一路甩到左侧图标上。
@@ -848,61 +743,18 @@ class MainActivity : Activity() {
      * 「推荐」档不走搜索，仍是推荐流。
      */
     /**
-     * 分类兜底：搜索被风控时，用推荐流按分类关键词筛。
-     * 命中不足 12 条就用推荐流补足（提示里已说明数据来源，不谎称是搜索结果）。
-     */
-    private fun categoryFallback(cookie: String, cat: String): DouyinApi.FeedResult? {
-        val keys = CATEGORY_KEYWORDS[cat] ?: return null
-        // ★ 搜索接口在设备端恒被风控 → 用推荐流筛。
-        //   推荐流的 max_cursor 实际不回填（每次都是全新一批），所以不靠游标翻页，
-        //   而是连拉 2 次（每次 count=20），把命中项排前面，不足 12 条再用
-        //   推荐流内容补满格子 —— 宁可频道里有内容看，也不要一整屏空白。
-        val hits = ArrayList<DouyinApi.VideoItem>()
-        val pool = ArrayList<DouyinApi.VideoItem>()
-        for (round in 0 until 2) {
-            val f = DouyinApi.fetchFeed(cookie, maxCursor = 0L, count = 20) ?: break
-            for (v in f.videos) {
-                if (pool.any { it.awemeId == v.awemeId }) continue
-                pool.add(v)
-                val match = keys.any { k ->
-                    v.desc.contains(k, ignoreCase = true) ||
-                        v.topics.any { it.contains(k, ignoreCase = true) } ||
-                        v.author.contains(k, ignoreCase = true)
-                }
-                if (match) hits.add(v)
-            }
-        }
-        Log.d(TAG, "分类「$cat」风控兜底：池 ${pool.size} 条，命中 ${hits.size} 条")
-        if (pool.isEmpty()) return null
-        val out = ArrayList<DouyinApi.VideoItem>()
-        out.addAll(hits)
-        for (v in pool) {
-            if (out.size >= 16) break
-            if (hits.none { it.awemeId == v.awemeId }) out.add(v)
-        }
-        return DouyinApi.FeedResult(out, 0L, true)
-    }
-
-    /**
      * 换一批 / 刷新当前频道。
      * · 关注 → 重拉关注流首页
      * · 推荐 → 重拉推荐流（它本身就「每次请求都是新内容」，等于换一批）
-     * · 分类 → 把批次偏移 +20，再看下一批搜索结果
      */
     private fun refreshChannel(nextBatch: Boolean, silent: Boolean = false) {
         if (!uiReady || loading) return
-        if (nextBatch && activeCategory != FOLLOW_TAB && activeCategory != "推荐") {
-            categoryOffset += 20
-        }
-        when {
-            activeCategory == FOLLOW_TAB -> loadFollowFeed(reset = true)
-            activeCategory == "推荐" -> loadFeed(NAV_RECOMMEND, reset = true)
-            else -> loadCategoryFeed(activeCategory, reset = true)
-        }
+        if (activeCategory == FOLLOW_TAB) loadFollowFeed(reset = true)
+        else loadFeed(NAV_RECOMMEND, reset = true)
         try { gridView.scrollToPosition(0) } catch (_: Throwable) {}
         if (!silent) {
             tvHint.text = "正在换一批…"
-            try { navRecommend.requestFocus() } catch (_: Throwable) {}
+            try { focusRowFirst() } catch (_: Throwable) {}
         }
     }
 
@@ -932,78 +784,6 @@ class MainActivity : Activity() {
         } catch (e: Exception) {
             Log.e(TAG, "频道菜单失败", e)
         }
-    }
-
-    private fun loadCategoryFeed(cat: String, reset: Boolean) {
-        // 「推荐」= 原生推荐流
-        if (cat == "推荐") {
-            loadFeed(NAV_RECOMMEND, reset)
-            return
-        }
-
-        // ★ 抢占式加载：不再 if (loading) return（那会让切导航后的新加载被旧请求挡回去），
-        //   改为自增代际、旧响应回来时对不上就丢弃。
-        val gen = ++loadGen
-        loading = true
-        // ★ 2.38：offset = 批次起点 + 本批内已翻的条数
-        val offset = if (reset) categoryOffset else categoryOffset + items.size
-        lastLoadFallback = false
-        if (reset) {
-            items.clear()
-            adapter.replaceAll(items)
-            lastCursor = 0L
-            showPlaceholder("正在加载「" + cat + "」…", loading = true, showRetry = false)
-            gridView.visibility = View.GONE
-        }
-
-        Thread {
-            val cookie = Prefs.getCookie(this)
-            var r: DouyinApi.FeedResult? = try {
-                DouyinApi.searchVideos(cookie, cat, offset)
-            } catch (e: Exception) {
-                null
-            }
-            // ★ 2.38 风控兜底 ★
-            //   搜索接口一旦被抖音判成 antispam_check / verify_check，就是整块返回 0 条，
-            //   界面只能干瞪眼。这里退一步：用【推荐流】（带签名的 /tab/feed，实测一直可用）
-            //   按本频道关键词筛一遍，至少让频道有真实内容可看，并在提示里说清楚。
-            if (r == null || r.videos.isEmpty()) {
-                val fb = try { categoryFallback(cookie, cat) } catch (_: Exception) { null }
-                if (fb != null && fb.videos.isNotEmpty()) {
-                    r = fb
-                    lastLoadFallback = true
-                }
-            }
-            handler.post {
-                if (gen != loadGen) return@post   // ★ 已被更新的加载取代，丢弃这份迟到结果
-                if (isFinishing) return@post      // ★ 修复：Activity 已销毁不再碰视图
-                loading = false
-                if (r == null || r.videos.isEmpty()) {
-                    if (items.isEmpty()) {
-                        showPlaceholder(
-                            "「" + cat + "」没取到内容\n\n" + DouyinApi.lastError +
-                                "\n\n可在设置页重新推送一次 Cookie。",
-                            loading = false, showRetry = true
-                        )
-                        gridView.visibility = View.GONE
-                    } else {
-                        hasMore = false
-                        tvHint.text = "没有更多了"
-                    }
-                } else {
-                    if (reset) adapter.replaceAll(r.videos) else adapter.append(r.videos)
-                    hidePlaceholder()
-                    gridView.visibility = View.VISIBLE
-                    tvCount.text = "共 " + adapter.itemCount + " 条"
-                    tvHint.text = if (lastLoadFallback)
-                        "「" + cat + "」搜索被风控 → 已用推荐流筛选　菜单键 换一批"
-                    else "分类 · 搜索「" + cat + "」"
-                    // ★ 风控兜底来的内容不能当搜索分页用（推荐流有自己的游标）
-                    hasMore = if (lastLoadFallback) false else r.hasMore
-                    lastCursor = (offset + r.videos.size).toLong()
-                }
-            }
-        }.start()
     }
 
     // ================================================================
@@ -1226,7 +1006,7 @@ class MainActivity : Activity() {
                 KeyEvent.KEYCODE_DPAD_DOWN -> {
                     if (!uiReady) return super.dispatchKeyEvent(event)
                     val f = currentFocus
-                    val fromTab = f is TextView && tabViews.contains(f)
+                    val fromTab = f is TextView && rowViews.contains(f)
                     val fromContainer = f == gridView
                     if (fromTab || fromContainer) {
                         if (focusFirstGridCard()) return true
