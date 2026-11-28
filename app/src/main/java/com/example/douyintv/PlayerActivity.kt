@@ -86,6 +86,20 @@ class PlayerActivity : Activity(), SurfaceHolder.Callback, VideoEngine.Listener,
 
     /** 黑边遮罩：非 Exo 引擎图层缩放后，四周涂黑（防某些 ROM 露白） */
     private lateinit var barMask: BlackBarMaskView
+    /** 上一条视频是否已经真正出过画面（决定切条时能不能沿用旧容器比例） */
+    private var hasRenderedVideo = false
+
+    /** 横竖切换过渡遮罩：目标比例（0 = 没有待撤的遮罩） */
+    private var pendingCoverRatio = 0f
+    private lateinit var switchCover: View
+
+    /**
+     * ★ 2.42：切条过渡遮罩的兜底撤除计时器 ★
+     *   正常路径是「新视频尺寸到达 → 比例摆好 → 撤遮罩」；
+     *   但坏链 / 纯音频可能永远不报尺寸，不能让黑罩一直挂着，
+     *   2.6 秒后无条件撤掉（此时状态提示已经写在遮罩上层，用户看得到）。
+     */
+
     private lateinit var aspectFrame: AspectFrame
     private lateinit var topBar: View
     private lateinit var bottomBar: View
@@ -128,6 +142,7 @@ class PlayerActivity : Activity(), SurfaceHolder.Callback, VideoEngine.Listener,
     private var blackRetryCount = 0
     /** 比例容器是否已为当前视频应用过（每视频一次，防比例抖动反复重建 Surface） */
     private var aspectAppliedToken = -1
+
     /** 比例自愈的节流计数 */
     private var geomSeq = 0
     /** 弹幕层 */
@@ -545,6 +560,7 @@ class PlayerActivity : Activity(), SurfaceHolder.Callback, VideoEngine.Listener,
             setContentView(R.layout.activity_player)
 
             surface = findViewById(R.id.surface) as SurfaceView
+            switchCover = findViewById(R.id.switchCover)
             imagePostView = findViewById(R.id.imagePostView) as android.widget.ImageView
         // ★ 播放页用不到任何封面图：把首页积累的图片缓存压到 2MB ★
         //   这台电视空闲内存常年只有 30MB 左右，让出这十几 MB
@@ -991,6 +1007,7 @@ private fun cur(): DouyinApi.VideoItem? {
 
         // ★★★ 图文/图集作品：无视频流，走图片轮播，不碰播放器 ★★★
         if (it.isImagePost) {
+            hideSwitchCover()
             playImagePost(it)
             return
         }
@@ -1012,8 +1029,23 @@ private fun cur(): DouyinApi.VideoItem? {
         maybeLoadMore()
         playToken++
         val token = playToken
-        // ★ 新视频从「干净几何」开始：上一条视频的容器比例 / 图层缩放绝不带到新视频
-        try { resetVideoGeometry() } catch (_: Throwable) {}
+        // ★ 2.42-fix：切条时不要复位画面几何 ★
+        //   旧行为（被用户吐槽的「先放大、再缩小、才换掉」）：
+        //     ① resetVideoGeometry() 把容器比例清成「铺满」；
+        //     ② 上一条视频的最后一帧还挂在 Surface 上 → 被拉满全屏（放大）；
+        //     ③ 新视频尺寸到了再缩回正常比例（缩小）；
+        //   修法：只要上一条视频已经出过画面，容器比例就原样保留 —— 旧画面不动、
+        //   不变形；等新视频 onVideoSize 到达时（新帧同一时刻接管）一次性改成新比例，
+        //   肉眼看不到被拉变形的画面。
+        //   （试过用一层纯黑 View 盖住切条瞬间，但在这台 ROM 上 SurfaceView 合成的
+        //     视频层压在这层之上，遮罩根本盖不住画面 —— 截图实测切换全程仍是旧画面。）
+        if (hasRenderedVideo) {
+            try { resetSurfaceScale() } catch (_: Throwable) {}
+        } else {
+            // 首次起播：Surface 里还没有任何画面，先把容器比例摆好，避免首帧被拉满
+            try { resetVideoGeometry() } catch (_: Throwable) {}
+            presetAspect(it.isPortrait)
+        }
         lastTickPos = 0L   // 新视频的进度基线清零，避免沿用上一条的位置判「已恢复」
         bufferingSince = 0L
         stallSince = 0L
@@ -1775,11 +1807,13 @@ private fun cur(): DouyinApi.VideoItem? {
 
     /** 换引擎时必须清零画面几何：上一种引擎的涂层缩放 / 容器比例会残留 */
     private fun resetVideoGeometry() {
+        try { hideSwitchCover() } catch (_: Throwable) {}
         try { resetSurfaceScale() } catch (_: Throwable) {}
         try { resetAspect() } catch (_: Throwable) {}
         lastVw = 0
         lastVh = 0
         aspectAppliedToken = 0
+        hasRenderedVideo = false
     }
 
     // ---------------- 画面比例（回到 v11 做法） ----------------
@@ -1804,10 +1838,21 @@ private fun cur(): DouyinApi.VideoItem? {
         //   横屏视频被塞进竖屏窄条（拉长）、竖屏视频被拉满全屏（变宽），都是这个原因。
         //   现在每次回调都按当前真实尺寸重算；AspectFrame 自身对相同比例是 no-op，
         //   图层缩放重复赋值也无副作用，所以不会引起 Surface 反复重建。
+        // ★ 横竖切换的「先放大再缩回」就发生在这几帧：新视频的第一帧被画进
+        //   「还没改尺寸」的旧容器（9:16 竖屏塞进 16:9 容器 = 拉满一屏），
+        //   等 Surface 变成新比例才恢复正常。
+        //   这里在新尺寸已知的这一刻盖一层黑，等 surfaceChanged 报出新比例再撤；
+        //   比例没变（横切横 / 竖切竖）就不盖，避免无谓的一下黑。
+        val curFrameRatio = try { aspectFrame.aspectRatio } catch (_: Throwable) { 0f }
+        if (hasRenderedVideo && curFrameRatio > 0f && Math.abs(curFrameRatio - ratio) > 0.02f) {
+            pendingCoverRatio = ratio
+            showSwitchCover()
+        }
         applyVideoGeometry(w, h)
         handler.post {
             tvHint.text = "视频 ${w}×${h}　比例 ${"%.2f".format(ratio)}"
         }
+        hasRenderedVideo = true
     }
 
     /** 按真实视频尺寸设置容器比例 / 图层缩放（可重复调用，幂等） */
@@ -1823,6 +1868,10 @@ private fun cur(): DouyinApi.VideoItem? {
             //   Exo 的 setVideoScalingMode(SCALE_TO_FIT) 只对 TextureView 生效，
             //   对本项目用的 SurfaceView 无效 —— 上一版去掉容器约束后画面被拉伸变形。
             //   必须用 AspectFrame 按视频比例约束 SurfaceView 尺寸来等比显示。
+            // ★ 2.42-fix：同步应用比例（不等下一轮 post）
+            //   切条时容器还保持上一条的比例，这里在「新视频尺寸已知」的同一时刻切过去，
+            //   新视频第一帧就落在正确的容器里，不会出现「先放大再缩小」的中间态。
+            try { applyAspect(ratio) } catch (_: Throwable) {}
             handler.post { applyAspect(ratio) }
             handler.post { resetSurfaceScale() }
         } else if (eng.stretchesToFillSurface()) {
@@ -1900,17 +1949,63 @@ private fun cur(): DouyinApi.VideoItem? {
         } catch (_: Throwable) {}
     }
 
+    /**
+     * ★ 2.42 起播预置比例：只对 Exo 生效（Exo 靠 AspectFrame 约束容器）。
+     * IJK / VLC 走的是「容器铺满 + 图层缩放」，预置容器比例反而会和它们的
+     * 缩放叠加，所以那两条线路仍保持「先复位、尺寸到了再缩放」的老逻辑。
+     */
+    private fun presetAspect(portrait: Boolean) {
+        if (!::aspectFrame.isInitialized) return
+        val eng = try { currentEngine() } catch (_: Throwable) { return }
+        if (eng !is ExoEngine) return
+        val guess = if (portrait) 9f / 16f else 16f / 9f
+        aspectFrame.aspectRatio = guess
+        Log.d(TAG, "起播预置比例 " + "%.4f".format(guess) + "（竖屏=" + portrait + "）")
+    }
+
     /** 按比例约束画面容器；比例恒定则不动（避免 Surface 反复重建） */
     private fun applyAspect(ratio: Float) {
         if (!::aspectFrame.isInitialized) return
         if (ratio <= 0f || ratio.isNaN()) return
+        if (Math.abs(aspectFrame.aspectRatio - ratio) >= 1e-3f) {
+            Log.d(TAG, "容器比例 → " + "%.4f".format(ratio))
+        }
         aspectFrame.aspectRatio = ratio
     }
 
     /** 容器回到「铺满」（非 Exo 引擎用，配合图层缩放） */
     private fun resetAspect() {
         if (!::aspectFrame.isInitialized) return
+        if (aspectFrame.aspectRatio != 0f) Log.d(TAG, "容器比例复位为铺满")
         aspectFrame.aspectRatio = 0f
+    }
+
+    /** ★ 横竖切换过渡遮罩：盖住「新画面被旧容器拉变形」的那几帧 */
+    private fun showSwitchCover() {
+        if (!::switchCover.isInitialized) return
+        if (switchCover.visibility == View.VISIBLE) return
+        switchCover.visibility = View.VISIBLE
+        Log.d(TAG, "切换遮罩盖上（目标比例 " + "%.4f".format(pendingCoverRatio) + "）")
+        handler.removeCallbacks(coverFallback)
+        handler.postDelayed(coverFallback, 1500L)
+    }
+
+    private fun hideSwitchCover() {
+        handler.removeCallbacks(coverFallback)
+        pendingCoverRatio = 0f
+        if (!::switchCover.isInitialized) return
+        if (switchCover.visibility != View.GONE) {
+            switchCover.visibility = View.GONE
+            Log.d(TAG, "切换遮罩撤除")
+        }
+    }
+
+    /** 兜底：新比例一直等不到（极端比例 / Surface 不重建）也别一直黑着 */
+    private val coverFallback = Runnable {
+        if (pendingCoverRatio != 0f) {
+            Log.d(TAG, "切换遮罩兜底撤除（等不到新尺寸）")
+            hideSwitchCover()
+        }
     }
 
     /** 清掉图层缩放（切回 Exo / 退出播放时） */
@@ -2012,6 +2107,14 @@ private fun cur(): DouyinApi.VideoItem? {
 
     override fun surfaceChanged(h: SurfaceHolder, f: Int, w: Int, h2: Int) {
         Log.d(TAG, "surfaceChanged ${w}x$h2")
+        // ★ 横竖切换：Surface 真的变成新比例了 → 再等一拍（让首帧画上去）撤遮罩
+        if (pendingCoverRatio > 0f && w > 0 && h2 > 0) {
+            val sr = w.toFloat() / h2.toFloat()
+            if (Math.abs(sr - pendingCoverRatio) < 0.02f) {
+                pendingCoverRatio = 0f
+                handler.postDelayed({ hideSwitchCover() }, 80L)
+            }
+        }
     }
 
     override fun surfaceDestroyed(h: SurfaceHolder) {

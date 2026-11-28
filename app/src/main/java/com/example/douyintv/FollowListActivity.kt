@@ -71,7 +71,7 @@ class FollowListActivity : Activity() {
         tvSub = findViewById(R.id.tvSub) as TextView
         tvStatus = findViewById(R.id.tvStatus) as TextView
 
-        tvTitle.text = "我的关注"
+        tvTitle.text = "关注"   // ★ 2.42：原「我的关注」改名「关注」
         tvSub.text = "选一个作者 → 看他的作品　（返回键退出）"
         tvStatus.text = "加载中…"
 

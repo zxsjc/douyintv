@@ -336,6 +336,10 @@
         "source": "com.example.douyintv.app-main-13:/layout/activity_list.xml"
     },
     {
+        "merged": "com.example.douyintv.app-debug-11:/layout_activity_live.xml.flat",
+        "source": "com.example.douyintv.app-main-13:/layout/activity_live.xml"
+    },
+    {
         "merged": "com.example.douyintv.app-debug-11:/drawable_cover_placeholder.xml.flat",
         "source": "com.example.douyintv.app-main-13:/drawable/cover_placeholder.xml"
     }

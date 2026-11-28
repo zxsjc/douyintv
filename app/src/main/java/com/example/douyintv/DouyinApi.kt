@@ -1100,6 +1100,129 @@ object DouyinApi {
             null
         }
     }
+    // ============================================================
+    // 直播频道  （实测：webcast/feed 不带任何签名即可用）
+    // ============================================================
+    /** 直播列表地址：域名、参数（除 count/offset）全部实测固定 */
+    private const val LIVE_FEED_URL = "https://webcast.amemv.com/webcast/feed/"
+
+    /** 一个正在直播的房间 */
+    data class LiveRoom(
+        val roomId: String,      // 房间 id_str（列表去重、日志用）
+        val title: String,
+        val nickname: String,
+        val avatarUrl: String,
+        val coverUrl: String,
+        val userCount: Int,
+        val flvUrl: String,      // Flv 直播流（ExoPlayer 的 ProgressiveMediaSource 直接能吃）
+        val altUrls: List<String>,
+        val isPortrait: Boolean
+    )
+
+    data class LiveFeedResult(val rooms: List<LiveRoom>, val nextOffset: Int, val hasMore: Boolean)
+
+    /**
+     * 拉一批正在直播的房间。
+     *
+     * 实测依据（2026-11-28 本机 + 当前 IP）：
+     *   `webcast/feed?aid=6383&app_name=douyin_web&live_id=1&device_platform=web&count=N&offset=X`
+     *   → `status_code=0`，`data[]` 每条 = `{web_rid, data:{id_str,title,user_count,cover,owner,stream_url}}`；
+     *   带 Cookie / 不带 Cookie 都通；`count` 单次最多给 6 条，`offset` 递增可翻页。
+     *   `stream_url.flv_pull_url` 直接就是播放地址 —— 不用再调「进房」接口，
+     *   也就没有额外的签名要求。抖音网页版的 live/list、feed/live 等路径全部 404（Janus），
+     *   只有这个 webcast 域名通。
+     */
+    fun fetchLiveRooms(cookie: String, offset: Int = 0, count: Int = 6): LiveFeedResult {
+        lastError = ""
+        val params = "aid=6383&app_name=douyin_web&live_id=1&device_platform=web" +
+                "&count=$count&offset=$offset"
+        return try {
+            val req = Request.Builder()
+                .url(LIVE_FEED_URL + "?" + params)
+                .header("User-Agent", UA)
+                .header("Referer", "https://live.douyin.com/")
+                .header("Accept", "application/json, text/plain, */*")
+                .apply { if (cookie.isNotEmpty()) header("Cookie", cookie) }
+                .build()
+            val resp = exec(req)
+            val body = resp.body()?.string() ?: ""
+            Log.d(TAG, "← 直播列表 HTTP ${resp.code()} offset=$offset body=${body.length}B")
+            if (resp.code() != 200 || body.isEmpty()) {
+                lastError = "直播列表 HTTP " + resp.code()
+                return LiveFeedResult(emptyList(), offset, false)
+            }
+            val root = JSONObject(body)
+            val sc = root.optInt("status_code", -1)
+            if (sc != 0) {
+                lastError = "直播列表 status_code=$sc"
+                return LiveFeedResult(emptyList(), offset, false)
+            }
+            val arr = root.optJSONArray("data")
+                ?: return LiveFeedResult(emptyList(), offset, false)
+            val out = ArrayList<LiveRoom>()
+            for (i in 0 until arr.length()) {
+                val it = arr.optJSONObject(i) ?: continue
+                val d = it.optJSONObject("data") ?: continue
+                val roomId = d.optString("id_str", "")
+                if (roomId.isEmpty()) continue
+                val owner = d.optJSONObject("owner")
+                val su = d.optJSONObject("stream_url")
+                val flv = su?.optJSONObject("flv_pull_url")
+                val hls = su?.optJSONObject("hls_pull_url_map")
+                // 优先默认清晰度，再依次往下降；flv 不行就用 hls（ProgressiveMediaSource 撑不住时留给兜底）
+                val prefer = su?.optString("default_resolution", "") ?: ""
+                val order = listOf(prefer, "FULL_HD1", "HD1", "ORIGION", "SD1", "SD2")
+                    .filter { it.isNotEmpty() }
+                var main = ""
+                val alts = ArrayList<String>()
+                for (k in order) {
+                    val u = flv?.optString(k, "") ?: ""
+                    if (u.isNotEmpty()) {
+                        if (main.isEmpty()) main = u else if (u != main) alts.add(u)
+                    }
+                }
+                if (main.isEmpty()) {
+                    // 极少数房间只给 hls
+                    for (k in order) {
+                        val u = hls?.optString(k, "") ?: ""
+                        if (u.isNotEmpty()) {
+                            if (main.isEmpty()) main = u else if (u != main) alts.add(u)
+                        }
+                    }
+                }
+                if (main.isEmpty()) continue
+                var avatar = ""
+                val al = owner?.optJSONObject("avatar_thumb")?.optJSONArray("url_list")
+                if (al != null && al.length() > 0) avatar = al.optString(0, "")
+                var cover = ""
+                val cl = d.optJSONObject("cover")?.optJSONArray("url_list")
+                if (cl != null && cl.length() > 0) cover = cl.optString(0, "")
+                val ew = su?.optJSONObject("extra")?.optInt("width", 0) ?: 0
+                val eh = su?.optJSONObject("extra")?.optInt("height", 0) ?: 0
+                out.add(
+                    LiveRoom(
+                        roomId = roomId,
+                        title = d.optString("title", "").ifEmpty { d.optString("short_title", "") },
+                        nickname = owner?.optString("nickname", "") ?: "",
+                        avatarUrl = avatar,
+                        coverUrl = cover,
+                        userCount = d.optInt("user_count", 0),
+                        flvUrl = main,
+                        altUrls = alts,
+                        isPortrait = if (eh > 0 && ew > 0) eh > ew else false
+                    )
+                )
+            }
+            val hasMore = root.optJSONObject("extra")?.optBoolean("has_more", true) ?: true
+            Log.d(TAG, "✓ 直播列表 offset=$offset 共 " + out.size + " 个房间 hasMore=$hasMore")
+            LiveFeedResult(out, offset + count, hasMore && out.isNotEmpty())
+        } catch (e: Exception) {
+            Log.e(TAG, "fetchLiveRooms 失败", e)
+            lastError = "直播列表异常：" + e.javaClass.simpleName
+            LiveFeedResult(emptyList(), offset, false)
+        }
+    }
+
     private const val SUG_URL = "https://www.douyin.com/aweme/v1/web/search/sug/"
 
     private const val SEARCH_HEAD =

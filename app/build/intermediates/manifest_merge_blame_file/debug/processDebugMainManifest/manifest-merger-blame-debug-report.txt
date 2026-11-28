@@ -1,8 +1,8 @@
 1<?xml version="1.0" encoding="utf-8"?>
 2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
 3    package="com.example.douyintv"
-4    android:versionCode="141"
-5    android:versionName="2.41" >
+4    android:versionCode="142"
+5    android:versionName="2.42" >
 6    <!--
 7 ijkplayer-arm64 的 aar 声明 minSdk 21，强制放行：
 8         arm64 设备必然 >=21，低版本走 armeabi-v7a
@@ -37,7 +37,7 @@
 24-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:13:22-80
 25
 26    <application
-26-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:19:5-112:19
+26-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:19:5-118:19
 27        android:name="com.example.douyintv.App"
 27-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:20:9-28
 28        android:allowBackup="false"
@@ -91,21 +91,21 @@
 53-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:41:13-37
 54            android:screenOrientation="sensorLandscape" />
 54-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:42:13-56
-55        <activity
-55-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:45:9-48:86
-56            android:name="com.example.douyintv.PlayerActivity"
-56-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:45:19-49
-57            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
-57-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:48:13-83
-58            android:exported="false"
-58-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:46:13-37
-59            android:screenOrientation="sensorLandscape" />
-59-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:47:13-56
-60
-61        <!-- 搜索页：热搜榜 + 关键词检索（独立页，返回键回主界面） -->
+55
+56        <!-- 直播频道：直播间播放页（Flv 直播流，独立于点播播放器） -->
+57        <activity
+57-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:46:9-49:86
+58            android:name="com.example.douyintv.LivePlayActivity"
+58-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:46:19-51
+59            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
+59-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:49:13-83
+60            android:exported="false"
+60-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:47:13-37
+61            android:screenOrientation="sensorLandscape" />
+61-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:48:13-56
 62        <activity
 62-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:51:9-54:86
-63            android:name="com.example.douyintv.SearchActivity"
+63            android:name="com.example.douyintv.PlayerActivity"
 63-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:51:19-49
 64            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
 64-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:54:13-83
@@ -113,76 +113,76 @@
 65-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:52:13-37
 66            android:screenOrientation="sensorLandscape" />
 66-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:53:13-56
-67        <activity
-67-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:56:9-60:53
-68            android:name="com.example.douyintv.HotActivity"
-68-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:58:13-40
-69            android:screenOrientation="landscape" />
-69-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:60:13-50
-70        <activity
-70-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:63:9-69:53
-71            android:name="com.example.douyintv.LoginActivity"
-71-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:66:13-42
-72            android:screenOrientation="landscape" />
-72-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:69:13-50
-73        <activity
-73-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:71:9-81
-74            android:name="com.example.douyintv.FollowListActivity"
-74-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:71:19-53
-75            android:exported="false" />
-75-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:71:54-78
-76        <activity
-76-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:72:9-75:86
-77            android:name="com.example.douyintv.AuthorActivity"
-77-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:72:19-49
-78            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
-78-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:75:13-83
-79            android:exported="false"
-79-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:73:13-37
-80            android:screenOrientation="sensorLandscape" />
-80-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:74:13-56
-81
-82        <!--
-83             评论改为右侧悬浮小窗（CommentDialogFragment），
-84             不再需要独立 Activity —— 跳转会暂停视频，体验差。
-85        -->
-86
-87
-88        <!--
-89             黑方块来源诊断页：纯白底 + 可选 SurfaceView 合成测试。
-90             入口在设置页，不参与正常业务流程。
-91        -->
-92        <activity
-92-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:82:9-85:86
-93            android:name="com.example.douyintv.WhiteTestActivity"
-93-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:82:19-52
-94            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
-94-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:85:13-83
-95            android:exported="false"
-95-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:83:13-37
-96            android:screenOrientation="sensorLandscape" />
-96-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:84:13-56
-97
-98        <!--
-99             接口自检页：实测分类/搜索候选接口，结果直接显示在屏幕上。
-100             纯诊断用途，入口在设置页。
-101        -->
-102        <activity
-102-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:89:9-92:86
-103            android:name="com.example.douyintv.ApiProbeActivity"
-103-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:89:19-51
-104            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
-104-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:92:13-83
-105            android:exported="false"
-105-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:90:13-37
-106            android:screenOrientation="sensorLandscape" />
-106-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:91:13-56
-107
-108        <!-- 关于页：作者 / 主页二维码 / 签名校验（设置 -> 关于） -->
+67
+68        <!-- 搜索页：热搜榜 + 关键词检索（独立页，返回键回主界面） -->
+69        <activity
+69-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:57:9-60:86
+70            android:name="com.example.douyintv.SearchActivity"
+70-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:57:19-49
+71            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
+71-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:60:13-83
+72            android:exported="false"
+72-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:58:13-37
+73            android:screenOrientation="sensorLandscape" />
+73-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:59:13-56
+74        <activity
+74-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:62:9-66:53
+75            android:name="com.example.douyintv.HotActivity"
+75-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:64:13-40
+76            android:screenOrientation="landscape" />
+76-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:66:13-50
+77        <activity
+77-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:69:9-75:53
+78            android:name="com.example.douyintv.LoginActivity"
+78-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:72:13-42
+79            android:screenOrientation="landscape" />
+79-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:75:13-50
+80        <activity
+80-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:77:9-81
+81            android:name="com.example.douyintv.FollowListActivity"
+81-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:77:19-53
+82            android:exported="false" />
+82-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:77:54-78
+83        <activity
+83-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:78:9-81:86
+84            android:name="com.example.douyintv.AuthorActivity"
+84-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:78:19-49
+85            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
+85-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:81:13-83
+86            android:exported="false"
+86-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:79:13-37
+87            android:screenOrientation="sensorLandscape" />
+87-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:80:13-56
+88
+89        <!--
+90             评论改为右侧悬浮小窗（CommentDialogFragment），
+91             不再需要独立 Activity —— 跳转会暂停视频，体验差。
+92        -->
+93
+94
+95        <!--
+96             黑方块来源诊断页：纯白底 + 可选 SurfaceView 合成测试。
+97             入口在设置页，不参与正常业务流程。
+98        -->
+99        <activity
+99-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:88:9-91:86
+100            android:name="com.example.douyintv.WhiteTestActivity"
+100-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:88:19-52
+101            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
+101-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:91:13-83
+102            android:exported="false"
+102-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:89:13-37
+103            android:screenOrientation="sensorLandscape" />
+103-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:90:13-56
+104
+105        <!--
+106             接口自检页：实测分类/搜索候选接口，结果直接显示在屏幕上。
+107             纯诊断用途，入口在设置页。
+108        -->
 109        <activity
 109-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:95:9-98:86
-110            android:name="com.example.douyintv.AboutActivity"
-110-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:95:19-48
+110            android:name="com.example.douyintv.ApiProbeActivity"
+110-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:95:19-51
 111            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
 111-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:98:13-83
 112            android:exported="false"
@@ -190,30 +190,42 @@
 113            android:screenOrientation="sensorLandscape" />
 113-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:97:13-56
 114
-115        <service
-115-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:100:13-77
-116            android:name="com.example.douyintv.PlayService"
-116-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:100:22-49
-117            android:exported="false" />
-117-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:100:50-74
-118
-119        <!-- 在线更新安装：文件 URI 必须走 FileProvider（targetSdk 26 禁止裸 file://） -->
-120        <provider
-121            android:name="androidx.core.content.FileProvider"
-121-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:104:17-66
-122            android:authorities="com.example.douyintv.fileprovider"
-122-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:105:17-68
-123            android:exported="false"
-123-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:106:17-41
-124            android:grantUriPermissions="true" >
-124-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:107:17-51
-125            <meta-data
-125-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:108:17-110:58
-126                android:name="android.support.FILE_PROVIDER_PATHS"
-126-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:109:21-71
-127                android:resource="@xml/file_paths" />
-127-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:110:21-55
-128        </provider>
-129    </application>
-130
-131</manifest>
+115        <!-- 关于页：作者 / 主页二维码 / 签名校验（设置 -> 关于） -->
+116        <activity
+116-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:101:9-104:86
+117            android:name="com.example.douyintv.AboutActivity"
+117-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:101:19-48
+118            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
+118-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:104:13-83
+119            android:exported="false"
+119-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:102:13-37
+120            android:screenOrientation="sensorLandscape" />
+120-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:103:13-56
+121
+122        <service
+122-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:106:13-77
+123            android:name="com.example.douyintv.PlayService"
+123-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:106:22-49
+124            android:exported="false" />
+124-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:106:50-74
+125
+126        <!-- 在线更新安装：文件 URI 必须走 FileProvider（targetSdk 26 禁止裸 file://） -->
+127        <provider
+128            android:name="androidx.core.content.FileProvider"
+128-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:110:17-66
+129            android:authorities="com.example.douyintv.fileprovider"
+129-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:111:17-68
+130            android:exported="false"
+130-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:112:17-41
+131            android:grantUriPermissions="true" >
+131-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:113:17-51
+132            <meta-data
+132-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:114:17-116:58
+133                android:name="android.support.FILE_PROVIDER_PATHS"
+133-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:115:21-71
+134                android:resource="@xml/file_paths" />
+134-->E:\Documents\GitHub\douyintv\app\src\main\AndroidManifest.xml:116:21-55
+135        </provider>
+136    </application>
+137
+138</manifest>

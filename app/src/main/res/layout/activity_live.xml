@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 直播播放页：一个 SurfaceView + 顶部标题栏 + 状态提示，没有进度条/弹幕 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FF000000">
+
+    <com.example.douyintv.AspectFrame
+        android:id="@+id/liveAspectFrame"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <SurfaceView
+            android:id="@+id/liveSurface"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+    </com.example.douyintv.AspectFrame>
+
+    <!-- ★ 2.42 换台过渡黑罩：换直播间瞬间盖住上一个直播的残留画面 ★
+         不碰 SurfaceView（这台 ROM 上 INVISIBLE↔VISIBLE 会重建 Surface）。 -->
+    <View
+        android:id="@+id/liveCover"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#FF000000"
+        android:clickable="false"
+        android:focusable="false"
+        android:visibility="gone" />
+
+    <!-- 顶部：直播间标题 / 主播 + 直播中角标 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:orientation="vertical"
+        android:paddingLeft="48dp"
+        android:paddingRight="48dp"
+        android:paddingTop="28dp">
+
+        <TextView
+            android:id="@+id/liveTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:shadowColor="#CC000000"
+            android:shadowDx="2"
+            android:shadowDy="2"
+            android:shadowRadius="6"
+            android:textColor="#FFFFFFFF"
+            android:textSize="24sp" />
+
+        <TextView
+            android:id="@+id/liveMeta"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:shadowColor="#CC000000"
+            android:shadowDx="2"
+            android:shadowDy="2"
+            android:shadowRadius="6"
+            android:textColor="#FFF75959"
+            android:textSize="16sp" />
+    </LinearLayout>
+
+    <!-- 中部状态提示（连接中 / 重试中） -->
+    <TextView
+        android:id="@+id/liveStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:textColor="#FFFFFFFF"
+        android:textSize="20sp" />
+
+    <!-- 底部操作提示 -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|right"
+        android:paddingRight="48dp"
+        android:paddingBottom="28dp"
+        android:text="↑↓ 切换直播间　按「返回」退出直播"
+        android:textColor="#B3FFFFFF"
+        android:textSize="15sp" />
+</FrameLayout>

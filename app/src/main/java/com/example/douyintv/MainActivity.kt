@@ -91,23 +91,31 @@ class MainActivity : Activity() {
     private var loadGen = 0
 
     // ================================================================
-    // 频道定义（只保留「关注」「推荐」，分类频道已整体下线）
+    // 频道定义
     // ================================================================
-    /** 顶部频道名「关注」：直接走关注流接口（我关注的人发的视频） */
-    private val FOLLOW_TAB = "关注"
+    /** ★ 2.42：关注流频道整条下线 —— 「关注」改成入口（原来是「我的关注」作者列表），
+     *  频道只剩「推荐」与新增的「直播」。 */
+    private val LIVE_TAB = "直播"
 
     /** 自动刷新周期（5 分钟） */
     private val AUTO_REFRESH_MS = 5 * 60 * 1000L
 
-    /** 频道标签：只剩「关注」「推荐」两个 */
-    private val TAB_NAMES: List<String> = listOf(FOLLOW_TAB, "推荐")
+    /** 频道标签：推荐 / 直播 */
+    private val TAB_NAMES: List<String> = listOf("推荐", LIVE_TAB)
 
-    /** 关注流分页状态 */
-    private var followCursor = 0L
-    private var followHasMore = true
+    /** 直播列表分页状态（接口一次只给 6 个房间，offset 递增继续拉） */
+    /** 直播最多翻几页（4 页 ≈ 24 个房间，够翻也够省流量） */
+    /**
+     * ★ 2.42：直播「到底自动换一批」★
+     *   原来 4 页硬顶（24 个房间）到顶就提示"没有更多直播了"，用户觉得像卡死了。
+     *   现在只要接口还有 has_more，滚到底就自动按新 offset 再拉一批接在后面，
+     *   不设人为页数上限；下面这个数字只是"防死循环"的兜底（30 页 = 180 个房间），
+     *   正常刷不到那里，真刷到了也只是停止续拉，不会崩。
+     */
+    /** 连续几批都全是重复房间才认为是"真的换不动了"（否则继续换下一批） */
 
-    /** 当前选中的分类名（默认进「关注」：打开电视就是关注列表，推荐一键可切） */
-    private var activeCategory = "关注"
+    /** 当前选中的频道（默认「推荐」） */
+    private var activeCategory = "推荐"
 
     /** 分类 Tab 控件（用于切换选中态） */
     private val tabViews = ArrayList<TextView>()
@@ -167,9 +175,9 @@ class MainActivity : Activity() {
 
             ensureUi()
 
-            // 进入首页立刻拉「关注」流（用户要求：打开电视直接看关注列表）
-            tvSectionTitle.text = FOLLOW_TAB
-            loadFollowFeed(reset = true)
+            // 进入首页立刻拉「推荐」流（关注流频道已下线，推荐做默认）
+            tvSectionTitle.text = activeCategory
+            loadDefaultChannel(reset = true)
 
             // ★ 显式指定默认焦点 ★ 放在 post 里等布局完成再 requestFocus
             focusRowFirst()
@@ -383,10 +391,13 @@ class MainActivity : Activity() {
                 return
             }
             ensureUi()
-            tvSectionTitle.text = FOLLOW_TAB
-            loadFollowFeed(reset = true)
+            tvSectionTitle.text = activeCategory
+            loadDefaultChannel(reset = true)
             focusRowFirst()
         }
+        // ★ 2.42：直播播放页里「↓ 到底」续拉到的房间，回到首页要合并进网格，
+        //   否则用户会看到列表还是进页时那 6 个，与刚才播放页里能切到 9 个不一致。
+        syncLiveRoomsFromPager()
         // ★ 在播放页里下完的更新，回到首页才提示安装（绝不打断正在看的视频）
         tabContainer.postDelayed({ if (uiForeground) maybeOfferInstall() }, 1200)
         // ★ 2.38：频道自动刷新（默认 5 分钟；停在列表顶部才刷新，不打扰翻页中的用户）
@@ -689,24 +700,46 @@ class MainActivity : Activity() {
             override fun onScrolled(rv: RecyclerView, dx: Int, dy: Int) {
                 val total = layoutManager.itemCount
                 val last = layoutManager.findLastVisibleItemPosition()
-                if (hasMore && !loading && total > 0 && last >= total - 3) {
-                    // 关注频道 → 关注流翻页；推荐频道 → 推荐流翻页
-                    if (activeCategory == FOLLOW_TAB) loadFollowFeed(reset = false)
-                    else loadFeed(NAV_RECOMMEND, reset = false)
+                if (!hasMore || loading || total <= 0 || last < total - 3) return
+                // 直播频道 → 直播列表翻页；推荐频道 → 推荐流翻页
+                if (activeCategory == LIVE_TAB) {
+                    // ★ 直播：必须是真的往下滚（dy>0）且没超过页数上限才续拉
+                    //   6 个房间一屏放得下，若只看「最后可见」会一进来就无限自拉。
+                    if (dy > 0 && LivePager.hasMore) loadLiveRooms(reset = false)
+                } else {
+                    loadFeed(NAV_RECOMMEND, reset = false)
                 }
             }
         })
     }
 
-    /** 选中某条 → 交给内存总线 → 进播放页 */
+    /** 选中某条 → 直播间进直播播放页；普通视频走内存总线进播放器 */
     private fun playAt(pos: Int) {
         if (pos < 0 || pos >= items.size) return
-        // 关注频道进来的列表，续拉要继续打关注流，而不是推荐流
-        val isFollow = activeCategory == FOLLOW_TAB
-        val source = if (isFollow) FeedBus.SOURCE_FOLLOW else FeedBus.SOURCE_FEED
+        val it = items[pos]
+        // ★ 直播频道：卡片 awemeId 以 live_ 开头，带着房间标题/主播/流地址进直播页
+        if (it.awemeId.startsWith(LIVE_ID_PREFIX)) {
+            try {
+                // ★ 2.42：整页直播间走 FeedBus（直播页要能 ↑↓ 切换）
+                //   Intent 只带当前这条的兜底信息 —— 撞 Binder 1MB 上限的老坑不能重踩
+                FeedBus.put(items, pos, FeedBus.SOURCE_FEED, 0L)
+                LivePager.markSeen(items)
+                startActivity(Intent(this, LivePlayActivity::class.java)
+                    .putExtra("id", it.awemeId)
+                    .putExtra("title", it.desc)
+                    .putExtra("author", it.author)
+                    .putExtra("url", it.videoUrl)
+                    .putExtra("alts", it.altUrls.joinToString("\n"))
+                    .putExtra("cover", it.coverUrl)
+                    .putExtra("portrait", it.isPortrait))
+            } catch (e: Exception) {
+                Log.e(TAG, "进入直播页失败", e)
+            }
+            return
+        }
         // 走内存总线而不是 Intent extra：
         //   传大列表会逼近 Binder 1MB 上限 → TransactionTooLarge → "点进去播不了"
-        FeedBus.put(items, pos, source, if (isFollow) followCursor else 0L)
+        FeedBus.put(items, pos, FeedBus.SOURCE_FEED, 0L)
         startActivity(Intent(this, PlayerActivity::class.java))
     }
 
@@ -714,7 +747,7 @@ class MainActivity : Activity() {
     // 分类：Tab 条（★ 常驻主界面顶部，点 Tab 即切频道）
     // ================================================================
     /**
-     * 构建顶部单行导航：频道标签（关注 / 推荐）+ 入口（我的关注 / 搜索 / 设置 / 登录）。
+     * 构建顶部单行导航：频道标签（推荐 / 直播）+ 入口（关注 / 搜索 / 设置 / 登录）。
      * 统一中文文字、无图标、同一套 chip 视觉与焦点动效。
      */
     private fun buildCategoryTabs() {
@@ -752,7 +785,8 @@ class MainActivity : Activity() {
             tabViews.add(tv)
         }
         // 原左侧纵向图标（全中文文字，不再需要图标）
-        addChip("我的关注") { openFollowList() }
+        // ★ 2.42：原「我的关注」入口改名为「关注」（被下线的关注流频道由它接替位置）
+        addChip("关注") { openFollowList() }
         addChip("搜索") { openSearch() }
         addChip("设置") { openSettings() }
         addChip("登录") { openLogin() }
@@ -765,7 +799,7 @@ class MainActivity : Activity() {
         activeCategory = name
         markCategorySelected()
         tvSectionTitle.text = name   // ★ 顶栏标题随频道切换
-        if (name == FOLLOW_TAB) loadFollowFeed(reset = true)
+        if (name == LIVE_TAB) loadLiveRooms(reset = true)
         else loadFeed(NAV_RECOMMEND, reset = true)
         // ★ 点完标签不要抢焦点 ★
         //   以前这里会把焦点直接塞给第一张卡片：用户按一下 OK 选频道的瞬间焦点就跳走，
@@ -800,7 +834,7 @@ class MainActivity : Activity() {
      */
     private fun refreshChannel(nextBatch: Boolean, silent: Boolean = false) {
         if (!uiReady || loading) return
-        if (activeCategory == FOLLOW_TAB) loadFollowFeed(reset = true)
+        if (activeCategory == LIVE_TAB) loadLiveRooms(reset = true)
         else loadFeed(NAV_RECOMMEND, reset = true)
         try { gridView.scrollToPosition(0) } catch (_: Throwable) {}
         if (!silent) {
@@ -840,87 +874,87 @@ class MainActivity : Activity() {
     // ================================================================
     // 关注流（网页版 douyin.com/follow 对应的接口）
     // ================================================================
-    /** 关注流空页自动续拉次数（横屏过滤会把整页滤空，别直接判死） */
-    private var followAutoRetry = 0
+    /** 直播卡片的 awemeId 前缀（网格与播放层靠它区分直播间 / 普通视频） */
+    private val LIVE_ID_PREFIX = "live_"
 
-    private fun loadFollowFeed(reset: Boolean) {
+    /**
+     * 默认频道加载：推荐流。
+     * ★ 2.42：关注流频道已下线（「关注」变成入口 → 我关注的人列表页），
+     *   默认频道固定走推荐流，不再有 follow 分支。
+     */
+    private fun loadDefaultChannel(reset: Boolean) {
+        if (activeCategory == LIVE_TAB) loadLiveRooms(reset = reset)
+        else loadFeed(NAV_RECOMMEND, reset = reset)
+    }
+
+    /**
+     * 直播频道：拉正在直播的房间，映射成网格卡片。
+     *
+     * 卡片只借用 VideoGridAdapter 的形状（封面 + 信息栏标题/作者），
+     * awemeId 用 `live_<房间id>` 前缀，点进去是 LivePlayActivity（不碰视频播放器，
+     * 评论 / 弹幕 / 进度条那套逻辑跟直播无关，混进去只会出错）。
+     */
+    /** 把直播分页器里（含播放页续拉）的房间合并进网格，按 id 去重 */
+    private fun syncLiveRoomsFromPager() {
+        if (activeCategory != LIVE_TAB || !uiReady) return
+        if (LivePager.collected.isEmpty()) return
+        val extra = ArrayList<DouyinApi.VideoItem>()
+        for (r in LivePager.collected) {
+            if (items.any { it.awemeId == r.awemeId }) continue
+            if (extra.any { it.awemeId == r.awemeId }) continue
+            extra.add(r)
+        }
+        if (extra.isEmpty()) return
+        items.addAll(extra)
+        adapter.append(extra)
+        tvCount.text = "共 ${adapter.size()} 个直播间"
+        Log.d(TAG, "直播网格同步播放页续拉的 ${extra.size} 个，累计 ${adapter.size()}")
+    }
+
+    private fun loadLiveRooms(reset: Boolean) {
         val gen = ++loadGen
         loading = true
         if (reset) {
             items.clear()
             adapter.replaceAll(items)
-            followCursor = 0L
-            followHasMore = true
+            LivePager.reset()
             hasMore = true
-            followAutoRetry = 0
-            showPlaceholder("正在加载「关注」…", loading = true, showRetry = false)
+            showPlaceholder("正在加载直播…", loading = true, showRetry = false)
             tvCount.text = ""
             gridView.visibility = View.GONE
         } else {
-            tvHint.text = "加载更多…"
+            tvHint.text = "加载更多直播…"
         }
 
         Thread {
-            val cookie = Prefs.getCookie(this)
-            val r = try {
-                DouyinApi.fetchFollowFeed(
-                    cookie,
-                    maxCursor = if (reset) 0L else followCursor,
-                    count = 12
-                )
-            } catch (e: Exception) {
-                null
-            }
+            val batch = LivePager.next(Prefs.getCookie(this))
             handler.post {
                 if (gen != loadGen) return@post
                 if (isFinishing) return@post
                 loading = false
+                hasMore = LivePager.hasMore
 
-                if (r == null) {
+                if (batch.items.isEmpty()) {
+                    val err = batch.error
                     if (items.isEmpty()) {
                         showPlaceholder(
-                            "「关注」没取到内容\n\n" + DouyinApi.lastError +
-                                "\n\n关注流要带登录 Cookie，可在设置页重新推送一次 Cookie。",
+                            if (err != null) "直播列表加载失败\n\n" + err
+                            else "暂时没有正在直播的主播\n\n稍后再进来看看，或按菜单键换一批。",
                             loading = false, showRetry = true
                         )
                         gridView.visibility = View.GONE
                     } else {
-                        hasMore = false
-                        followHasMore = false
-                        tvHint.text = "没有更多了"
+                        tvHint.text = if (err != null) "加载失败：$err" else "没有更多直播了"
                     }
                     return@post
                 }
 
-                followCursor = r.maxCursor
-                followHasMore = r.hasMore
-                hasMore = r.hasMore
-
-                if (r.videos.isEmpty()) {
-                    // 有空页但还有下一页（多为「仅横屏」把这一页全滤掉）→ 自动续拉两页
-                    if (r.hasMore && followAutoRetry < 2) {
-                        followAutoRetry++
-                        loadFollowFeed(reset = false)
-                        return@post
-                    }
-                    if (items.isEmpty()) {
-                        showPlaceholder(
-                            "「关注」暂时没有可看的视频\n\n" + DouyinApi.lastError +
-                                "\n\n若已关注了人，可能是都只有竖屏视频 —— 设置里关闭「仅横屏」再试。",
-                            loading = false, showRetry = true
-                        )
-                        gridView.visibility = View.GONE
-                    } else {
-                        tvHint.text = "没有更多了"
-                    }
-                    return@post
-                }
-
-                if (reset) adapter.replaceAll(r.videos) else adapter.append(r.videos)
+                if (reset) adapter.replaceAll(batch.items) else adapter.append(batch.items)
                 hidePlaceholder()
                 gridView.visibility = View.VISIBLE
-                tvCount.text = "共 ${adapter.size()} 条"
-                tvHint.text = "关注 · 我关注的人" + if (hasMore) " ↓ 继续加载" else "（已到底）"
+                tvCount.text = "共 ${adapter.size()} 个直播间"
+                tvHint.text = "直播 · 正在直播" + if (hasMore) "　↓ 到底自动换一批" else "（已到底）"
+                Log.d(TAG, "直播 ${batch.items.size} 个，累计 ${adapter.size()}")
             }
         }.start()
     }
@@ -1061,6 +1095,22 @@ class MainActivity : Activity() {
                     val fromContainer = f == gridView
                     if (fromTab || fromContainer) {
                         if (focusFirstGridCard()) return true
+                    }
+                    // ★ 2.42 直播「到底自动换一批」★
+                    //   直播一页只有 6 个房间（2 行），列表根本不会滚动，
+                    //   所以光靠滚动监听永远触发不了续拉 —— 必须按「焦点已在最后一行
+                    //   还按 ↓」这个信号来接：就地拉下一批接在后面，焦点留在原卡不动。
+                    //   事件要消费掉，否则焦点会被框架甩出列表。
+                    if (activeCategory == LIVE_TAB) {
+                        val item = gridItemOf(f)
+                        val pos = if (item != null) layoutManager.getPosition(item) else -1
+                        if (pos >= 0 && pos + spanCount >= adapter.itemCount) {
+                            if (hasMore && !loading) {
+                                tvHint.text = "到底了，正在换一批直播…"
+                                loadLiveRooms(reset = false)
+                            }
+                            return true
+                        }
                     }
                 }
                 // ★ 2.41：↑ 在网格里逐行上移，到顶行再按 ↑ 直接回频道栏 ★

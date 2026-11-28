@@ -22,6 +22,22 @@
 
     </com.example.douyintv.AspectFrame>
 
+    <!-- ★ 横竖切换过渡遮罩：只在「比例要变」时盖几百毫秒 ★
+         为什么要它：新视频的第一帧可能先被画进「还没改尺寸」的旧容器里
+         （16:9 容器里的 9:16 竖屏 → 被拉满一屏），等 Surface 尺寸跟上才缩回正常，
+         用户看到的就是「先放大、再缩小」。
+         这里在新尺寸已知的这一刻盖上，等 Surface 真的变成新比例再撤（兜底 1.5 秒）。
+         不用 Surface 的 INVISIBLE：这台 ROM 上 INVISIBLE↔VISIBLE 会重建 Surface
+         并反向触发重播（历史踩坑）。 -->
+    <View
+        android:id="@+id/switchCover"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#FF000000"
+        android:clickable="false"
+        android:focusable="false"
+        android:visibility="gone" />
+
     <!-- ★ 图文/图集作品显示层：无视频流的作品在这里轮播图片 ★
          默认 gone；只有当前条目是图文作品时才显示，盖在 SurfaceView 之上。 -->
     <ImageView

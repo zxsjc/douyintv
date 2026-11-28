@@ -185,6 +185,12 @@ id ivMediaTag
 id ivPause
 id ivQr
 id keyboardBox
+id liveAspectFrame
+id liveCover
+id liveMeta
+id liveStatus
+id liveSurface
+id liveTitle
 id pbCover
 id pbLoading
 id placeholder
@@ -196,6 +202,7 @@ id seekBar
 id sugBox
 id sugRecycler
 id surface
+id switchCover
 id tabContainer
 id tabScroll
 id topBar
@@ -233,6 +240,7 @@ layout activity_about
 layout activity_api_probe
 layout activity_hot
 layout activity_list
+layout activity_live
 layout activity_login
 layout activity_main
 layout activity_player

@@ -122,6 +122,20 @@ class AuthorActivity : Activity() {
         }.start()
     }
 
+    /**
+     * 作者没有作品时的统一文案。
+     *
+     * 用户诉求（2.42）：不要在作者主页出现「XXX 可能被封禁过」这类猜测性提示，
+     * 一律显示「暂无作品」。只有真正的网络类失败（HTTP / 超时 / 异常）才保留原因，
+     * 方便排查要不要重试。
+     */
+    private fun emptyWorksText(err: String): String {
+        val e = err.trim()
+        val netFail = e.contains("HTTP") || e.contains("超时") || e.contains("Exception") ||
+            e.contains("异常") || e.contains("无法")
+        return if (netFail) "暂无作品（加载失败：" + e + "）" else "暂无作品"
+    }
+
     private fun loadMore() {
         if (loading || !hasMore) return
         loading = true
@@ -139,13 +153,15 @@ class AuthorActivity : Activity() {
                 if (isFinishing) return@post      // ★ 修复：Activity 已销毁不再碰视图
                 loading = false
                 if (r == null) {
-                    // ★ 局部失败：只提示，不崩
-                    tvStatus.text = "加载失败：" + DouyinApi.lastError
+                    // ★ 2.42：只要「拿不到作品」都算「暂无作品」——
+                    //   旧版会把接口的原始报错（aweme_list 为空 / status_code 之类，
+                    //   甚至由此引出的「可能被封禁」猜测）直接摊给用户，看着像账号出事。
+                    tvStatus.text = emptyWorksText(DouyinApi.lastError)
                     return@post
                 }
                 if (r.videos.isEmpty()) {
                     hasMore = false
-                    tvStatus.text = if (items.isEmpty()) "该作者没有作品" else "没有更多作品了"
+                    tvStatus.text = if (items.isEmpty()) "暂无作品" else "没有更多作品了"
                     return@post
                 }
 

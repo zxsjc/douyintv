@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.douyintv"
-    android:versionCode="141"
-    android:versionName="2.41" >
+    android:versionCode="142"
+    android:versionName="2.42" >
     <!--
  ijkplayer-arm64 的 aar 声明 minSdk 21，强制放行：
          arm64 设备必然 >=21，低版本走 armeabi-v7a
@@ -49,6 +49,13 @@
         </activity>
         <activity
             android:name="com.example.douyintv.SettingsActivity"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape" />
+
+        <!-- 直播频道：直播间播放页（Flv 直播流，独立于点播播放器） -->
+        <activity
+            android:name="com.example.douyintv.LivePlayActivity"
             android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
             android:exported="false"
             android:screenOrientation="sensorLandscape" />

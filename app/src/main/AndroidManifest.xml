@@ -42,6 +42,12 @@
             android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|keyboard|keyboardHidden" />
 
+        <!-- 直播频道：直播间播放页（Flv 直播流，独立于点播播放器） -->
+        <activity android:name=".LivePlayActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden" />
+
         <activity android:name=".PlayerActivity"
             android:exported="false"
             android:screenOrientation="sensorLandscape"

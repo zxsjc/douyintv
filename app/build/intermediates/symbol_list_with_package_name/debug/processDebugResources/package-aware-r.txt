@@ -329,6 +329,12 @@ id keyboardBox
 id left
 id line1
 id line3
+id liveAspectFrame
+id liveCover
+id liveMeta
+id liveStatus
+id liveSurface
+id liveTitle
 id none
 id normal
 id notification_background
@@ -349,6 +355,7 @@ id start
 id sugBox
 id sugRecycler
 id surface
+id switchCover
 id tabContainer
 id tabScroll
 id tag_accessibility_actions
@@ -406,6 +413,7 @@ layout activity_about
 layout activity_api_probe
 layout activity_hot
 layout activity_list
+layout activity_live
 layout activity_login
 layout activity_main
 layout activity_player
